@@ -28,10 +28,30 @@ import {
   LogOut,
   Mail,
   AlertCircle,
-  Loader2
+  Loader2,
+  Users,
+  Award,
+  UserCheck,
+  UserX,
+  Edit3,
+  Phone
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { createClient } from "@/lib/supabase/client";
+import { DEFAULT_COACHES, CoachProfile } from "@/lib/data";
+
+interface UserProfile {
+  id: string;
+  email: string;
+  full_name: string;
+  phone: string;
+  role: "student" | "coach" | "admin";
+  coach_status?: string; // 'none' | 'pending' | 'approved' | 'rejected'
+  bio?: string;
+  expertise?: string;
+  years_exp?: number;
+  created_at: string;
+}
 
 interface Booking {
   id: string;
@@ -44,6 +64,8 @@ interface Booking {
   symptoms_note: string;
   status: string;
   created_at: string;
+  coach_id?: string;
+  coach_name?: string;
 }
 
 interface Order {
@@ -62,6 +84,7 @@ interface Order {
 interface ChatMessage {
   id: string;
   user_id: string;
+  coach_id?: string;
   sender_name: string;
   content: string;
   is_from_coach: boolean;
@@ -73,6 +96,7 @@ interface StudentThread {
   student_name: string;
   last_message: string;
   updated_at: string;
+  coach_id?: string;
 }
 
 export default function AdminPage() {
@@ -81,16 +105,20 @@ export default function AdminPage() {
   // Auth & Role states
   const [authStatus, setAuthStatus] = useState<"checking" | "unauthenticated" | "unauthorized" | "authorized">("checking");
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [currentProfile, setCurrentProfile] = useState<any>(null);
+  const [currentProfile, setCurrentProfile] = useState<UserProfile | null>(null);
 
-  // Login form states (for unauthenticated users on this page)
+  // Login form states
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  // Tab & Data states
-  const [activeTab, setActiveTab] = useState<"messages" | "bookings" | "orders">("messages");
+  // Navigation tab
+  const [activeTab, setActiveTab] = useState<"users" | "messages" | "bookings" | "orders" | "coach_profile">("users");
+  
+  // Data lists
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [userFilter, setUserFilter] = useState<"all" | "coach" | "student" | "pending">("all");
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [threads, setThreads] = useState<StudentThread[]>([]);
@@ -99,6 +127,12 @@ export default function AdminPage() {
   const [coachReply, setCoachReply] = useState("");
   const [isSending, setIsSending] = useState(false);
   
+  // Coach personal profile editing (for logged in coaches)
+  const [coachBio, setCoachBio] = useState("");
+  const [coachExpertise, setCoachExpertise] = useState("");
+  const [coachYearsExp, setCoachYearsExp] = useState(5);
+  const [isSavingCoachProfile, setIsSavingCoachProfile] = useState(false);
+
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -113,7 +147,7 @@ export default function AdminPage() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [currentConversation]);
 
-  // Lắng nghe tin nhắn mới từ học viên theo thời gian thực (Supabase Realtime)
+  // Lắng nghe tin nhắn mới theo thời gian thực (Realtime)
   useEffect(() => {
     if (!selectedThread) return;
     const supabase = createClient();
@@ -167,12 +201,21 @@ export default function AdminPage() {
 
       if (profile && (profile.role === "admin" || profile.role === "coach")) {
         setAuthStatus("authorized");
-        fetchData();
+        // Nếu là Admin mặc định mở tab users, nếu là Coach mặc định mở tab messages
+        if (profile.role === "coach") {
+          setActiveTab("messages");
+          setCoachBio(profile.bio || "");
+          setCoachExpertise(profile.expertise || "");
+          setCoachYearsExp(profile.years_exp || 5);
+        } else {
+          setActiveTab("users");
+        }
+        fetchData(profile);
       } else {
         setAuthStatus("unauthorized");
       }
     } catch (err) {
-      console.error("Lỗi xác thực quyền admin:", err);
+      console.error("Lỗi xác thực quyền:", err);
       setAuthStatus("unauthenticated");
     }
   };
@@ -211,7 +254,12 @@ export default function AdminPage() {
 
         if (profile && (profile.role === "admin" || profile.role === "coach")) {
           setAuthStatus("authorized");
-          fetchData();
+          if (profile.role === "coach") {
+            setActiveTab("messages");
+          } else {
+            setActiveTab("users");
+          }
+          fetchData(profile);
         } else {
           setAuthStatus("unauthorized");
         }
@@ -231,19 +279,30 @@ export default function AdminPage() {
     setAuthStatus("unauthenticated");
   };
 
-  const fetchData = async () => {
+  const fetchData = async (userProf?: UserProfile | null) => {
     setIsLoading(true);
+    const prof = userProf || currentProfile;
     try {
       const supabase = createClient();
       
-      // 1. Lấy danh sách tin nhắn trao đổi
-      const { data: mData } = await supabase
-        .from("messages")
-        .select("*")
-        .order("created_at", { ascending: false });
+      // 1. Nếu là Admin, lấy toàn bộ danh sách tài khoản profiles
+      if (prof?.role === "admin") {
+        const { data: uData } = await supabase
+          .from("profiles")
+          .select("*")
+          .order("created_at", { ascending: false });
+        if (uData) setUsers(uData);
+      }
+
+      // 2. Lấy danh sách tin nhắn trao đổi
+      let msgQuery = supabase.from("messages").select("*").order("created_at", { ascending: false });
+      if (prof?.role === "coach") {
+        // Coach lọc các tin nhắn của chính mình hoặc chưa gán
+        msgQuery = msgQuery.or(`coach_id.eq.${prof.id},coach_id.is.null`);
+      }
+      const { data: mData } = await msgQuery;
 
       if (mData) {
-        // Nhóm tin nhắn theo user_id thành các luồng học viên
         const map = new Map<string, StudentThread>();
         mData.forEach((m: any) => {
           if (!map.has(m.user_id)) {
@@ -252,6 +311,7 @@ export default function AdminPage() {
               student_name: m.sender_name || "Học viên",
               last_message: m.content,
               updated_at: m.created_at,
+              coach_id: m.coach_id,
             });
           }
         });
@@ -262,23 +322,85 @@ export default function AdminPage() {
         }
       }
 
-      // 2. Lấy danh sách lịch hẹn
-      const { data: bData } = await supabase
-        .from("bookings")
-        .select("*")
-        .order("created_at", { ascending: false });
+      // 3. Lấy danh sách lịch hẹn
+      let bookingQuery = supabase.from("bookings").select("*").order("created_at", { ascending: false });
+      if (prof?.role === "coach") {
+        bookingQuery = bookingQuery.or(`coach_id.eq.${prof.id},coach_id.is.null`);
+      }
+      const { data: bData } = await bookingQuery;
       if (bData) setBookings(bData);
 
-      // 3. Lấy danh sách đơn hàng VietQR
+      // 4. Lấy danh sách đơn hàng VietQR
       const { data: oData } = await supabase
         .from("orders")
         .select("*")
         .order("created_at", { ascending: false });
       if (oData) setOrders(oData);
     } catch (err) {
-      console.error("Lỗi tải dữ liệu admin:", err);
+      console.error("Lỗi tải dữ liệu:", err);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Admin thay đổi vai trò người dùng (Phê duyệt Coach, chuyển về học viên, v.v.)
+  const handleUpdateUserRole = async (userId: string, newRole: "student" | "coach" | "admin", newStatus?: string) => {
+    try {
+      const supabase = createClient();
+      const updateData: any = { role: newRole };
+      if (newStatus) updateData.coach_status = newStatus;
+      if (newRole === "coach" && !newStatus) updateData.coach_status = "approved";
+
+      const { error } = await supabase
+        .from("profiles")
+        .update(updateData)
+        .eq("id", userId);
+
+      if (error) throw error;
+
+      setUsers((prev) =>
+        prev.map((u) => (u.id === userId ? { ...u, ...updateData } : u))
+      );
+      showFlashMessage(`Đã cập nhật vai trò người dùng thành: ${newRole.toUpperCase()}`);
+    } catch (err) {
+      console.error(err);
+      showFlashMessage("Không thể cập nhật vai trò người dùng.");
+    }
+  };
+
+  // Coach lưu thông tin giới thiệu chuyên môn
+  const handleSaveCoachProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser) return;
+    setIsSavingCoachProfile(true);
+
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          bio: coachBio,
+          expertise: coachExpertise,
+          years_exp: Number(coachYearsExp),
+        })
+        .eq("id", currentUser.id);
+
+      if (error) throw error;
+
+      showFlashMessage("Đã cập nhật hồ sơ chuyên môn của bạn!");
+      if (currentProfile) {
+        setCurrentProfile({
+          ...currentProfile,
+          bio: coachBio,
+          expertise: coachExpertise,
+          years_exp: Number(coachYearsExp),
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      showFlashMessage("Lỗi khi lưu hồ sơ chuyên môn.");
+    } finally {
+      setIsSavingCoachProfile(false);
     }
   };
 
@@ -305,8 +427,9 @@ export default function AdminPage() {
       const supabase = createClient();
       const newMsg = {
         user_id: selectedThread.user_id,
+        coach_id: currentUser?.id || null,
         sender_id: currentUser?.id || null,
-        sender_name: currentProfile?.full_name || "Chị Minh Hằng",
+        sender_name: currentProfile?.full_name || "Huấn Luyện Viên",
         content: replyText,
         is_from_coach: true,
       };
@@ -367,12 +490,28 @@ export default function AdminPage() {
     setTimeout(() => setMessage(null), 3000);
   };
 
+  const isAdmin = currentProfile?.role === "admin";
+  const isCoach = currentProfile?.role === "coach";
+
+  const filteredUsers = users.filter((u) => {
+    const matchesSearch = 
+      u.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      u.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      u.phone?.includes(searchTerm);
+    
+    if (!matchesSearch) return false;
+    if (userFilter === "coach") return u.role === "coach";
+    if (userFilter === "student") return u.role === "student";
+    if (userFilter === "pending") return u.coach_status === "pending";
+    return true;
+  });
+
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF8F5]">
       <Navbar />
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full flex-1">
-        {/* Top header navigation */}
+        {/* Top Header Navigation */}
         <div className="flex items-center justify-between mb-8">
           <Link
             href="/"
@@ -388,13 +527,16 @@ export default function AdminPage() {
                 <div className="text-xs font-semibold text-[#2D2A26]">
                   {currentProfile?.full_name || currentUser?.email}
                 </div>
-                <div className="text-[10px] text-[#3D5A4C] font-semibold uppercase tracking-wider">
-                  Vai trò: {currentProfile?.role === "coach" ? "Huấn luyện viên (Coach)" : "Quản trị viên (Admin)"}
+                <div className="text-[10px] text-[#3D5A4C] font-semibold uppercase tracking-wider flex items-center justify-end gap-1">
+                  <ShieldCheck className="w-3 h-3 text-[#3D5A4C]" />
+                  <span>
+                    {isAdmin ? "Tổng Quản Trị (Admin)" : "Người Hướng Dẫn (Coach)"}
+                  </span>
                 </div>
               </div>
 
               <button
-                onClick={fetchData}
+                onClick={() => fetchData()}
                 disabled={isLoading}
                 className="px-3.5 py-1.5 rounded-xl border border-[#DED7CE] bg-white hover:bg-[#F5F2ED] text-xs font-semibold text-[#3D5A4C] flex items-center gap-1.5 transition-colors shadow-xs"
               >
@@ -413,17 +555,17 @@ export default function AdminPage() {
           )}
         </div>
 
-        {/* 1. Trạng thái đang kiểm tra (Checking) */}
+        {/* 1. Trạng thái Checking */}
         {authStatus === "checking" && (
           <div className="max-w-md mx-auto my-20 text-center py-12">
             <Loader2 className="w-8 h-8 text-[#3D5A4C] animate-spin mx-auto mb-4" />
             <p className="text-sm font-medium text-[#7A7165]">
-              Đang xác thực quyền Quản trị viên...
+              Đang xác thực quyền Admin / Coach...
             </p>
           </div>
         )}
 
-        {/* 2. Trạng thái chưa đăng nhập (Unauthenticated) */}
+        {/* 2. Trạng thái Unauthenticated */}
         {authStatus === "unauthenticated" && (
           <div className="max-w-md mx-auto my-12 zen-card p-8 bg-white text-center space-y-6">
             <div className="w-14 h-14 rounded-full bg-[#3D5A4C]/10 text-[#3D5A4C] mx-auto flex items-center justify-center">
@@ -431,10 +573,10 @@ export default function AdminPage() {
             </div>
             <div>
               <h2 className="font-serif text-2xl font-bold text-[#2D2A26]">
-                Cổng Quản Trị • Chị Minh Hằng
+                Cổng Quản Trị & Huấn Luyện Viên
               </h2>
               <p className="text-xs text-[#7A7165] mt-1.5 leading-relaxed">
-                Vui lòng đăng nhập bằng tài khoản có vai trò <strong>Admin</strong> hoặc <strong>Coach</strong> để truy cập.
+                Đăng nhập tài khoản dành cho <strong>Tổng Quản Trị (Admin)</strong> hoặc <strong>Người Hướng Dẫn (Coach)</strong>
               </p>
             </div>
 
@@ -448,7 +590,7 @@ export default function AdminPage() {
             <form onSubmit={handleAdminLogin} className="space-y-4 text-left">
               <div>
                 <label className="block text-xs font-semibold text-[#5C554E] mb-1.5">
-                  Email Quản Trị
+                  Email Đăng Nhập
                 </label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-[#9E9589] absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -488,7 +630,7 @@ export default function AdminPage() {
                 {isLoggingIn ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Đang kiểm tra quyền...</span>
+                    <span>Đang kiểm tra...</span>
                   </>
                 ) : (
                   <>
@@ -501,7 +643,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 3. Trạng thái không có quyền (Unauthorized - User có role = 'student') */}
+        {/* 3. Trạng thái Unauthorized (Học viên thường) */}
         {authStatus === "unauthorized" && (
           <div className="max-w-lg mx-auto my-12 zen-card p-8 bg-white text-center space-y-6">
             <div className="w-16 h-16 rounded-full bg-amber-50 text-amber-600 mx-auto flex items-center justify-center">
@@ -509,41 +651,22 @@ export default function AdminPage() {
             </div>
             <div>
               <h2 className="font-serif text-2xl font-bold text-[#2D2A26]">
-                Tài Khoản Không Có Quyền Quản Trị
+                Chưa Được Cấp Quyền Huấn Luyện Viên / Quản Trị
               </h2>
               <p className="text-xs text-[#7A7165] mt-2 leading-relaxed">
-                Bạn đang đăng nhập bằng tài khoản <strong>{currentUser?.email}</strong>.
+                Tài khoản <strong>{currentUser?.email}</strong> hiện có vai trò: <span className="font-semibold text-[#3D5A4C] uppercase">{currentProfile?.role || "student"}</span>.
               </p>
-              <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FAF8F5] border border-[#ECE7E1] text-xs">
-                <span className="text-[#8C7355]">Vai trò hiện tại:</span>
-                <span className="font-semibold text-[#3D5A4C] uppercase">
-                  {currentProfile?.role || "student"}
-                </span>
-              </div>
-              <p className="text-xs text-[#7A7165] mt-3 leading-relaxed">
-                Khu vực này chỉ dành riêng cho tài khoản được cấp vai trò <strong>admin</strong> hoặc <strong>coach</strong>.
+              <p className="text-xs text-[#8C7355] mt-2 leading-relaxed">
+                Nếu bạn là Người hướng dẫn (Coach) mới đăng ký, vui lòng liên hệ <strong>Tổng Quản Trị Viên</strong> để được bấm phê duyệt vai trò Coach.
               </p>
-            </div>
-
-            <div className="p-4 bg-[#FAF8F5] rounded-xl border border-[#ECE7E1] text-left text-xs text-[#5C554E] space-y-2">
-              <div className="font-semibold text-[#2D2A26] flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-[#3D5A4C]" />
-                <span>Hướng dẫn cấp quyền Admin cho tài khoản này:</span>
-              </div>
-              <p className="text-[11px] text-[#7A7165]">
-                Nếu đây là tài khoản của Chị Minh Hằng, mở <strong>Supabase SQL Editor</strong> và chạy lệnh sau:
-              </p>
-              <code className="block p-2.5 rounded bg-white border border-[#DED7CE] font-mono text-[11px] text-[#3D5A4C] select-all break-all">
-                UPDATE public.profiles SET role = &apos;admin&apos; WHERE email = &apos;{currentUser?.email}&apos;;
-              </code>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
               <button
                 onClick={handleLogout}
-                className="flex-1 py-2.5 px-4 rounded-xl border border-[#DED7CE] bg-white hover:bg-[#F5F2ED] text-xs font-semibold text-[#5C554E] transition-colors"
+                className="flex-1 py-2.5 px-4 rounded-xl border border-[#DED7CE] bg-white hover:bg-[#F5F2ED] text-xs font-semibold text-[#5C554E]"
               >
-                Đăng Xuất Tài Khoản Này
+                Đăng Xuất Đổi Tài Khoản
               </button>
               <Link
                 href="/dashboard"
@@ -556,22 +679,24 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 4. Trạng thái đã xác thực quyền Admin/Coach (Authorized) */}
+        {/* 4. Trạng thái Authorized (Admin hoặc Coach) */}
         {authStatus === "authorized" && (
           <div className="space-y-6">
-            {/* Title & Notification */}
+            {/* Header Banner */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-[#ECE7E1]">
               <div>
                 <div className="text-xs font-bold uppercase tracking-wider text-[#8C7355] flex items-center gap-1.5 mb-1">
                   <ShieldCheck className="w-4 h-4 text-[#3D5A4C]" />
-                  <span>Cổng Quản Trị • Chị Minh Hằng</span>
+                  <span>
+                    {isAdmin ? "Bảng Điều Khiển Tổng Quản Trị" : "Không Gian Làm Việc Huấn Luyện Viên (Coach)"}
+                  </span>
                 </div>
                 <h1 className="font-serif text-2xl font-bold text-[#2D2A26]">
-                  Tương Tác Học Viên & Vận Hành
+                  {isAdmin ? "Giám Sát Hệ Thống & Phê Duyệt Coach" : `Chào Coach ${currentProfile?.full_name || "Minh Hằng"}`}
                 </h1>
               </div>
 
-              {/* Search input */}
+              {/* Search box */}
               <div className="relative max-w-xs w-full">
                 <Search className="w-4 h-4 text-[#9E9589] absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
@@ -592,6 +717,21 @@ export default function AdminPage() {
 
             {/* Navigation Tabs */}
             <div className="flex border-b border-[#ECE7E1] gap-6 overflow-x-auto">
+              {/* Tab dành cho Admin */}
+              {isAdmin && (
+                <button
+                  onClick={() => setActiveTab("users")}
+                  className={`pb-3 text-sm font-semibold flex items-center gap-2 border-b-2 whitespace-nowrap transition-all ${
+                    activeTab === "users"
+                      ? "border-[#3D5A4C] text-[#3D5A4C]"
+                      : "border-transparent text-[#7A7165] hover:text-[#2D2A26]"
+                  }`}
+                >
+                  <Users className="w-4 h-4" />
+                  <span>Quản Lý Thành Viên & Duyệt Coach ({users.length})</span>
+                </button>
+              )}
+
               <button
                 onClick={() => setActiveTab("messages")}
                 className={`pb-3 text-sm font-semibold flex items-center gap-2 border-b-2 whitespace-nowrap transition-all ${
@@ -601,7 +741,7 @@ export default function AdminPage() {
                 }`}
               >
                 <MessageCircle className="w-4 h-4" />
-                <span>Hộp Thư Tâm Sự Với Học Viên ({threads.length})</span>
+                <span>Hộp Thư 1:1 ({threads.length})</span>
               </button>
 
               <button
@@ -613,23 +753,165 @@ export default function AdminPage() {
                 }`}
               >
                 <Calendar className="w-4 h-4" />
-                <span>Lịch Hẹn Tư Vấn 1:1 ({bookings.length})</span>
+                <span>Lịch Tư Vấn 1:1 ({bookings.length})</span>
               </button>
 
-              <button
-                onClick={() => setActiveTab("orders")}
-                className={`pb-3 text-sm font-semibold flex items-center gap-2 border-b-2 whitespace-nowrap transition-all ${
-                  activeTab === "orders"
-                    ? "border-[#3D5A4C] text-[#3D5A4C]"
-                    : "border-transparent text-[#7A7165] hover:text-[#2D2A26]"
-                }`}
-              >
-                <CreditCard className="w-4 h-4" />
-                <span>Đơn Chuyển Khoản VietQR ({orders.length})</span>
-              </button>
+              {isAdmin && (
+                <button
+                  onClick={() => setActiveTab("orders")}
+                  className={`pb-3 text-sm font-semibold flex items-center gap-2 border-b-2 whitespace-nowrap transition-all ${
+                    activeTab === "orders"
+                      ? "border-[#3D5A4C] text-[#3D5A4C]"
+                      : "border-transparent text-[#7A7165] hover:text-[#2D2A26]"
+                  }`}
+                >
+                  <CreditCard className="w-4 h-4" />
+                  <span>Đơn Chuyển Khoản VietQR ({orders.length})</span>
+                </button>
+              )}
+
+              {/* Tab cập nhật hồ sơ dành cho Coach */}
+              {isCoach && (
+                <button
+                  onClick={() => setActiveTab("coach_profile")}
+                  className={`pb-3 text-sm font-semibold flex items-center gap-2 border-b-2 whitespace-nowrap transition-all ${
+                    activeTab === "coach_profile"
+                      ? "border-[#3D5A4C] text-[#3D5A4C]"
+                      : "border-transparent text-[#7A7165] hover:text-[#2D2A26]"
+                  }`}
+                >
+                  <Award className="w-4 h-4" />
+                  <span>Hồ Sơ Giới Thiệu Của Bạn</span>
+                </button>
+              )}
             </div>
 
-            {/* TAB 1: 1-ON-1 MESSAGES INBOX */}
+            {/* TAB 1: ADMIN QUẢN LÝ THÀNH VIÊN & DUYỆT COACH */}
+            {activeTab === "users" && isAdmin && (
+              <div className="space-y-6">
+                {/* Metrics Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="p-5 bg-white rounded-2xl border border-[#ECE7E1]">
+                    <div className="text-xs text-[#8C7355] font-semibold uppercase">Tổng Học Viên</div>
+                    <div className="text-2xl font-serif font-bold text-[#2D2A26] mt-1">
+                      {users.filter((u) => u.role === "student").length}
+                    </div>
+                  </div>
+                  <div className="p-5 bg-white rounded-2xl border border-[#ECE7E1]">
+                    <div className="text-xs text-emerald-700 font-semibold uppercase">Coachers Đã Phê Duyệt</div>
+                    <div className="text-2xl font-serif font-bold text-emerald-800 mt-1">
+                      {users.filter((u) => u.role === "coach").length}
+                    </div>
+                  </div>
+                  <div className="p-5 bg-white rounded-2xl border border-[#ECE7E1]">
+                    <div className="text-xs text-amber-700 font-semibold uppercase">Yêu Cầu Chờ Duyệt</div>
+                    <div className="text-2xl font-serif font-bold text-amber-800 mt-1">
+                      {users.filter((u) => u.coach_status === "pending").length}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Filter buttons */}
+                <div className="flex items-center gap-2 text-xs font-semibold">
+                  <span className="text-[#8C7355]">Lọc danh sách:</span>
+                  {(["all", "coach", "student", "pending"] as const).map((f) => (
+                    <button
+                      key={f}
+                      onClick={() => setUserFilter(f)}
+                      className={`px-3 py-1.5 rounded-lg transition-colors ${
+                        userFilter === f
+                          ? "bg-[#3D5A4C] text-white"
+                          : "bg-white text-[#5C554E] border border-[#ECE7E1] hover:bg-[#FAF8F5]"
+                      }`}
+                    >
+                      {f === "all" ? "Tất Cả" : f === "coach" ? "Huấn Luyện Viên" : f === "student" ? "Học Viên" : "Chờ Duyệt"}
+                    </button>
+                  ))}
+                </div>
+
+                {/* User table */}
+                <div className="bg-white rounded-2xl border border-[#ECE7E1] overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-[#FAF8F5] text-[#5C554E] border-b border-[#ECE7E1]">
+                        <tr>
+                          <th className="p-4 font-bold">Thành Viên</th>
+                          <th className="p-4 font-bold">Email</th>
+                          <th className="p-4 font-bold">Số Điện Thoại</th>
+                          <th className="p-4 font-bold">Vai Trò Hiện Tại</th>
+                          <th className="p-4 font-bold">Chuyên Môn / Bio</th>
+                          <th className="p-4 font-bold text-right">Phê Duyệt / Phân Quyền</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#ECE7E1]">
+                        {filteredUsers.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="p-8 text-center text-[#9E9589]">
+                              Không tìm thấy thành viên nào.
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredUsers.map((u) => (
+                            <tr key={u.id} className="hover:bg-[#FAF8F5]/50 transition-colors">
+                              <td className="p-4 font-bold text-[#2D2A26] flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-full bg-[#3D5A4C]/10 text-[#3D5A4C] flex items-center justify-center font-bold text-xs shrink-0">
+                                  {u.full_name?.charAt(0) || "U"}
+                                </div>
+                                <span>{u.full_name || "Chưa đặt tên"}</span>
+                              </td>
+                              <td className="p-4 text-[#5C554E]">{u.email}</td>
+                              <td className="p-4 text-[#5C554E]">{u.phone || "—"}</td>
+                              <td className="p-4">
+                                <span
+                                  className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${
+                                    u.role === "admin"
+                                      ? "bg-purple-100 text-purple-800"
+                                      : u.role === "coach"
+                                      ? "bg-emerald-100 text-emerald-800"
+                                      : "bg-[#F0EDE8] text-[#5C554E]"
+                                  }`}
+                                >
+                                  {u.role === "admin" ? "Quản Trị Viên" : u.role === "coach" ? "Huấn Luyện Viên" : "Học Viên"}
+                                </span>
+                              </td>
+                              <td className="p-4 text-[#7A7165] max-w-xs text-[11px] truncate">
+                                {u.expertise || u.bio || "Chưa có mô tả"}
+                              </td>
+                              <td className="p-4 text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  {u.role !== "coach" && (
+                                    <button
+                                      onClick={() => handleUpdateUserRole(u.id, "coach", "approved")}
+                                      className="px-2.5 py-1 rounded-lg bg-emerald-700 text-white font-semibold text-[11px] hover:bg-emerald-800 flex items-center gap-1"
+                                      title="Phê duyệt làm Huấn luyện viên"
+                                    >
+                                      <UserCheck className="w-3 h-3" />
+                                      <span>Duyệt Coach</span>
+                                    </button>
+                                  )}
+
+                                  {u.role === "coach" && (
+                                    <button
+                                      onClick={() => handleUpdateUserRole(u.id, "student", "none")}
+                                      className="px-2.5 py-1 rounded-lg border border-[#DED7CE] text-[#7A7165] hover:bg-[#FAF8F5] text-[11px] font-semibold"
+                                      title="Chuyển về quyền học viên thông thường"
+                                    >
+                                      Hạ Về Học Viên
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: HỘP THƯ 1:1 */}
             {activeTab === "messages" && (
               <div className="grid grid-cols-1 md:grid-cols-12 gap-6 bg-white rounded-2xl border border-[#ECE7E1] overflow-hidden min-h-[550px]">
                 {/* Left: Thread list */}
@@ -678,7 +960,7 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                {/* Right: Message conversation stream & Reply form */}
+                {/* Right: Message conversation stream */}
                 <div className="md:col-span-8 flex flex-col">
                   {selectedThread ? (
                     <>
@@ -769,12 +1051,12 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* TAB 2: CONSULTATION BOOKINGS */}
+            {/* TAB 3: CONSULTATION BOOKINGS */}
             {activeTab === "bookings" && (
               <div className="bg-white rounded-2xl border border-[#ECE7E1] overflow-hidden">
                 <div className="p-4 sm:p-6 border-b border-[#ECE7E1] flex items-center justify-between">
                   <h3 className="font-serif text-lg font-bold text-[#2D2A26]">
-                    Danh Sách Lịch Tư Vấn 1:1 Cùng Chị Minh Hằng
+                    Danh Sách Lịch Tư Vấn 1:1 {isCoach ? "Của Bạn" : "Toàn Hệ Thống"}
                   </h3>
                   <span className="text-xs text-[#8C7355] font-medium">
                     Tổng số: {bookings.length} lịch hẹn
@@ -905,8 +1187,8 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* TAB 3: VIETQR ORDERS */}
-            {activeTab === "orders" && (
+            {/* TAB 4: VIETQR ORDERS (ADMIN ONLY) */}
+            {activeTab === "orders" && isAdmin && (
               <div className="bg-white rounded-2xl border border-[#ECE7E1] overflow-hidden">
                 <div className="p-4 sm:p-6 border-b border-[#ECE7E1] flex items-center justify-between">
                   <h3 className="font-serif text-lg font-bold text-[#2D2A26]">
@@ -995,6 +1277,71 @@ export default function AdminPage() {
                     </tbody>
                   </table>
                 </div>
+              </div>
+            )}
+
+            {/* TAB 5: COACH PROFILE SETTINGS (FOR COACHES) */}
+            {activeTab === "coach_profile" && isCoach && (
+              <div className="max-w-2xl bg-white rounded-2xl border border-[#ECE7E1] p-6 sm:p-8 space-y-6">
+                <div>
+                  <h3 className="font-serif text-xl font-bold text-[#2D2A26]">
+                    Hồ Sơ Giới Thiệu Chuyên Môn
+                  </h3>
+                  <p className="text-xs text-[#7A7165] mt-1">
+                    Thông tin này sẽ hiển thị để học viên xem và lựa chọn bạn làm Người hướng dẫn đồng hành.
+                  </p>
+                </div>
+
+                <form onSubmit={handleSaveCoachProfile} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#5C554E] mb-1.5">
+                      Lĩnh Vực Thế Mạnh / Chuyên Môn
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ví dụ: Thiền Năng Lực Tự Nhiên & Chuyển Hóa Cảm Xúc Thân Tâm"
+                      value={coachExpertise}
+                      onChange={(e) => setCoachExpertise(e.target.value)}
+                      className="w-full text-xs sm:text-sm px-4 py-3 rounded-xl border border-[#DED7CE] bg-[#FAF8F5] focus:outline-none focus:border-[#3D5A4C]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[#5C554E] mb-1.5">
+                      Số Năm Kinh Nghiệm Thiền Định & Khai Vấn
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={40}
+                      value={coachYearsExp}
+                      onChange={(e) => setCoachYearsExp(Number(e.target.value))}
+                      className="w-full text-xs sm:text-sm px-4 py-3 rounded-xl border border-[#DED7CE] bg-[#FAF8F5] focus:outline-none focus:border-[#3D5A4C]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[#5C554E] mb-1.5">
+                      Giới Thiệu Bản Thân & Triết Lý Đồng Hành (Bio)
+                    </label>
+                    <textarea
+                      rows={4}
+                      placeholder="Chia sẻ kinh nghiệm thực hành thiền, phương pháp hỗ trợ học viên tháo gỡ bế tắc..."
+                      value={coachBio}
+                      onChange={(e) => setCoachBio(e.target.value)}
+                      className="w-full text-xs sm:text-sm px-4 py-3 rounded-xl border border-[#DED7CE] bg-[#FAF8F5] focus:outline-none focus:border-[#3D5A4C] leading-relaxed"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSavingCoachProfile}
+                    className="px-6 py-3 rounded-xl zen-btn-primary font-semibold text-xs sm:text-sm shadow-sm flex items-center gap-2 disabled:opacity-50"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                    <span>{isSavingCoachProfile ? "Đang lưu..." : "Lưu Thay Đổi"}</span>
+                  </button>
+                </form>
               </div>
             )}
           </div>

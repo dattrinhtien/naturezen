@@ -18,16 +18,21 @@ import {
   ArrowRight,
   Heart,
   Video,
-  FileText
+  FileText,
+  Users,
+  Check,
+  X,
+  Phone
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import ZenPlayerModal from "@/components/ZenPlayerModal";
 import { createClient } from "@/lib/supabase/client";
-import { LESSONS, Lesson, EBOOKS } from "@/lib/data";
+import { LESSONS, Lesson, EBOOKS, DEFAULT_COACHES, CoachProfile } from "@/lib/data";
 
 interface MessageItem {
   id: string;
   sender_id: string;
+  coach_id?: string;
   sender_name: string;
   content: string;
   is_from_coach: boolean;
@@ -47,6 +52,11 @@ export default function DashboardPage() {
   const [isPlayerOpen, setIsPlayerOpen] = useState(false);
   const [activeLesson, setActiveLesson] = useState<Lesson>(LESSONS[0]);
 
+  // Coach states
+  const [coaches, setCoaches] = useState<CoachProfile[]>(DEFAULT_COACHES);
+  const [selectedCoach, setSelectedCoach] = useState<CoachProfile>(DEFAULT_COACHES[0]);
+  const [isCoachModalOpen, setIsCoachModalOpen] = useState(false);
+
   const chatEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -57,7 +67,7 @@ export default function DashboardPage() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Lắng nghe tin nhắn phản hồi từ Chị Minh Hằng theo thời gian thực (Supabase Realtime)
+  // Lắng nghe tin nhắn phản hồi từ Coach theo thời gian thực (Supabase Realtime)
   useEffect(() => {
     if (!user) return;
     const supabase = createClient();
@@ -105,7 +115,41 @@ export default function DashboardPage() {
       .single();
     if (prof) setProfile(prof);
 
-    // Lấy tin nhắn trao đổi với Chị Minh Hằng
+    // Lấy danh sách Coach đã được duyệt từ hệ thống
+    try {
+      const { data: dbCoaches } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("role", "coach");
+
+      if (dbCoaches && dbCoaches.length > 0) {
+        const mapped: CoachProfile[] = dbCoaches.map((c: any) => ({
+          id: c.id,
+          fullName: c.full_name || "Huấn Luyện Viên",
+          roleTitle: c.full_name?.includes("Hằng") ? "Sáng Lập Viên & Master Coach" : "Huấn Luyện Viên Đồng Hành",
+          expertise: c.expertise || "Thiền Năng Lực Tự Nhiên & Chuyển Hoá Cảm Xúc Thân Tâm",
+          bio: c.bio || "Người đồng hành lắng nghe, tháo gỡ bế tắc nội tâm và hướng dẫn thiền quán.",
+          phone: c.phone || "0906115528",
+          yearsExp: c.years_exp || 5,
+          badge: c.full_name?.includes("Hằng") ? "Trưởng Ban Hướng Dẫn" : "Coach Đã Phê Duyệt",
+          avatarLetter: c.full_name?.charAt(0)?.toUpperCase() || "C"
+        }));
+
+        setCoaches(mapped);
+
+        // Nếu học viên đã chọn coach trước đó
+        if (prof?.coach_id) {
+          const current = mapped.find((m) => m.id === prof.coach_id);
+          if (current) setSelectedCoach(current);
+        } else if (mapped.length > 0) {
+          setSelectedCoach(mapped[0]);
+        }
+      }
+    } catch {
+      // Giữ default coaches nếu có lỗi
+    }
+
+    // Lấy tin nhắn trao đổi
     const { data: msgData } = await supabase
       .from("messages")
       .select("*")
@@ -138,6 +182,22 @@ export default function DashboardPage() {
     if (bData) setBookings(bData);
   };
 
+  const handleSelectCoach = async (coach: CoachProfile) => {
+    setSelectedCoach(coach);
+    setIsCoachModalOpen(false);
+    if (!user) return;
+
+    try {
+      const supabase = createClient();
+      await supabase
+        .from("profiles")
+        .update({ coach_id: coach.id })
+        .eq("id", user.id);
+    } catch (err) {
+      console.error("Lưu coach_id:", err);
+    }
+  };
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !user) return;
@@ -150,6 +210,7 @@ export default function DashboardPage() {
       const supabase = createClient();
       const newMsg = {
         user_id: user.id,
+        coach_id: selectedCoach.id,
         sender_id: user.id,
         sender_name: profile?.full_name || user.email?.split("@")[0] || "Học viên",
         content: content,
@@ -194,7 +255,7 @@ export default function DashboardPage() {
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex-1">
         {/* User Welcome Bar */}
-        <div className="zen-card p-6 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+        <div className="zen-card p-6 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-full bg-[#3D5A4C]/10 text-[#3D5A4C] flex items-center justify-center font-serif text-xl font-bold">
               {profile?.full_name ? profile.full_name[0].toUpperCase() : <User className="w-7 h-7" />}
@@ -223,6 +284,40 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Coach Companion Banner */}
+        <div className="p-5 mb-8 rounded-2xl bg-white border border-[#ECE7E1] flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-[#3D5A4C] text-white flex items-center justify-center font-serif text-lg font-bold shadow-xs shrink-0">
+              {selectedCoach.avatarLetter}
+            </div>
+            <div>
+              <div className="text-[11px] text-[#8C7355] font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-[#3D5A4C]" />
+                <span>Người Hướng Dẫn Đồng Hành Của Bạn</span>
+                {selectedCoach.badge && (
+                  <span className="px-2 py-0.5 rounded-full bg-[#3D5A4C]/10 text-[#3D5A4C] text-[10px] font-bold">
+                    {selectedCoach.badge}
+                  </span>
+                )}
+              </div>
+              <h2 className="font-serif text-lg font-bold text-[#2D2A26]">
+                {selectedCoach.fullName}
+              </h2>
+              <p className="text-xs text-[#5C554E] max-w-xl">
+                {selectedCoach.expertise} • {selectedCoach.yearsExp} năm kinh nghiệm
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setIsCoachModalOpen(true)}
+            className="px-4 py-2 rounded-xl border border-[#3D5A4C]/30 text-[#3D5A4C] hover:bg-[#FAF8F5] text-xs font-semibold flex items-center gap-1.5 transition-colors shrink-0"
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>Chọn / Đổi Người Hướng Dẫn</span>
+          </button>
+        </div>
+
         {/* Navigation Tabs */}
         <div className="flex border-b border-[#ECE7E1] gap-6 mb-6 overflow-x-auto">
           <button
@@ -234,7 +329,7 @@ export default function DashboardPage() {
             }`}
           >
             <MessageCircle className="w-4 h-4" />
-            <span>Tâm Sự & Trao Đổi 1:1 Với Chị Minh Hằng</span>
+            <span>Tâm Sự & Trao Đổi 1:1 Cùng {selectedCoach.fullName}</span>
           </button>
 
           <button
@@ -274,18 +369,18 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        {/* Tab 1: Chat 1:1 with Coach Minh Hằng */}
+        {/* Tab 1: Chat 1:1 with Selected Coach */}
         {activeTab === "chat" && (
           <div className="zen-card bg-white flex flex-col h-[600px] overflow-hidden border border-[#ECE7E1]">
             {/* Chat header */}
             <div className="px-6 py-4 border-b border-[#ECE7E1] bg-[#FAF8F5] flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-[#3D5A4C] text-white flex items-center justify-center font-serif font-bold text-sm">
-                  MH
+                  {selectedCoach.avatarLetter}
                 </div>
                 <div>
                   <h3 className="font-serif font-bold text-sm text-[#2D2A26]">
-                    Chị Minh Hằng • Người Đồng Hành
+                    {selectedCoach.fullName} • Người Đồng Hành
                   </h3>
                   <div className="text-[11px] text-[#3D5A4C] flex items-center gap-1.5 font-medium">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -316,7 +411,7 @@ export default function DashboardPage() {
                     Chào mừng bạn đến với Không gian Tâm sự Riêng
                   </h4>
                   <p className="text-xs text-[#7A7165] max-w-md leading-relaxed">
-                    Đây là không gian riêng giữa bạn và Chị Minh Hằng. Bạn có thể chia sẻ những cảm xúc đang bế tắc, những điểm đau trên thân thể hoặc hỏi thêm về cách thực hành thiền. Chị Minh Hằng sẽ đọc và phản hồi trực tiếp cho bạn tại đây.
+                    Đây là không gian riêng giữa bạn và {selectedCoach.fullName}. Bạn có thể chia sẻ những cảm xúc đang bế tắc, những điểm đau trên thân thể hoặc hỏi thêm về cách thực hành thiền. {selectedCoach.fullName} sẽ đọc và phản hồi trực tiếp cho bạn tại đây.
                   </p>
                 </div>
               ) : (
@@ -326,7 +421,7 @@ export default function DashboardPage() {
                     className={`flex flex-col ${msg.is_from_coach ? "items-start" : "items-end"}`}
                   >
                     <div className="text-[11px] text-[#8C847A] mb-1 px-1">
-                      {msg.is_from_coach ? "Chị Minh Hằng" : "Bạn"} •{" "}
+                      {msg.is_from_coach ? (msg.sender_name || selectedCoach.fullName) : "Bạn"} •{" "}
                       {new Date(msg.created_at).toLocaleTimeString("vi-VN", {
                         hour: "2-digit",
                         minute: "2-digit",
@@ -351,7 +446,7 @@ export default function DashboardPage() {
             <form onSubmit={handleSendMessage} className="p-4 border-t border-[#ECE7E1] bg-white flex items-center gap-3">
               <input
                 type="text"
-                placeholder="Nhập tâm sự, câu hỏi hoặc cảm xúc bế tắc của bạn để chia sẻ với Chị Minh Hằng..."
+                placeholder={`Nhập tâm sự hoặc câu hỏi của bạn để gửi tới ${selectedCoach.fullName}...`}
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
                 className="flex-1 text-xs sm:text-sm px-4 py-3 rounded-xl border border-[#DED7CE] bg-[#FAF8F5] focus:outline-none focus:border-[#3D5A4C]"
@@ -376,7 +471,7 @@ export default function DashboardPage() {
                 Hành Trình 6 Bài Thiền & Thấu Hiểu Cảm Xúc
               </h2>
               <p className="text-xs text-[#7A7165]">
-                Toàn bộ audio chất lượng cao được lưu trữ an toàn trên Supabase Cloud Storage.
+                Thực hành theo thứ tự từng bài để bóc tách từng tầng lớp cảm xúc từ bề mặt thân thể về sự tĩnh lặng thuần khiết.
               </p>
             </div>
 
@@ -384,142 +479,159 @@ export default function DashboardPage() {
               {LESSONS.map((lesson) => (
                 <div
                   key={lesson.id}
-                  className="zen-card p-6 bg-white border border-[#ECE7E1] flex flex-col justify-between hover:border-[#3D5A4C] transition-all"
+                  className="zen-card p-6 bg-white flex flex-col justify-between hover:border-[#3D5A4C]/40 transition-all border border-[#ECE7E1]"
                 >
                   <div>
-                    <div className="flex items-center justify-between mb-4">
-                      <span className="w-8 h-8 rounded-full bg-[#3D5A4C]/10 text-[#3D5A4C] font-bold text-xs flex items-center justify-center">
-                        0{lesson.orderIndex}
-                      </span>
-                      <span className="text-xs font-medium text-[#8C7355] flex items-center gap-1">
+                    <div className="flex items-center justify-between text-xs text-[#8C7355] font-semibold mb-2">
+                      <span>Bài {lesson.orderIndex}</span>
+                      <span className="flex items-center gap-1">
                         <Clock className="w-3.5 h-3.5" />
                         {lesson.durationMinutes} phút
                       </span>
                     </div>
 
-                    <h3 className="font-serif font-bold text-base text-[#2D2A26] mb-2">
+                    <h3 className="font-serif text-lg font-bold text-[#2D2A26] mb-1">
                       {lesson.title}
                     </h3>
-                    <p className="text-xs text-[#7A7165] line-clamp-3 mb-4 leading-relaxed">
+                    <p className="text-xs text-[#8C7355] italic mb-3">
+                      &quot;{lesson.subtitle}&quot;
+                    </p>
+                    <p className="text-xs text-[#5C554E] line-clamp-3 mb-4 leading-relaxed">
                       {lesson.coreMeaning}
                     </p>
                   </div>
 
-                  <div className="pt-4 border-t border-[#ECE7E1] flex items-center justify-between">
-                    <button
-                      onClick={() => {
-                        setActiveLesson(lesson);
-                        setIsPlayerOpen(true);
-                      }}
-                      className="px-4 py-2 rounded-xl zen-btn-primary text-xs font-semibold flex items-center gap-1.5 shadow-xs"
-                    >
-                      <Play className="w-3.5 h-3.5 fill-white" />
-                      <span>Bật Bài Thiền</span>
-                    </button>
-                    {lesson.ebookPdfUrl && (
-                      <a
-                        href={lesson.ebookPdfUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-[#3D5A4C] font-medium hover:underline flex items-center gap-1"
-                      >
-                        <FileText className="w-3.5 h-3.5" />
-                        <span>Ebook</span>
-                      </a>
-                    )}
-                  </div>
+                  <button
+                    onClick={() => {
+                      setActiveLesson(lesson);
+                      setIsPlayerOpen(true);
+                    }}
+                    className="w-full py-2.5 rounded-xl zen-btn-primary text-xs font-semibold flex items-center justify-center gap-2 shadow-xs"
+                  >
+                    <Play className="w-4 h-4 fill-white" />
+                    <span>Luyện Tập Bài Này</span>
+                  </button>
                 </div>
               ))}
             </div>
 
-            {/* Ebook Library */}
-            <div className="pt-8 border-t border-[#ECE7E1]">
+            {/* Ebooks List */}
+            <div className="pt-6 border-t border-[#ECE7E1]">
               <h3 className="font-serif text-lg font-bold text-[#2D2A26] mb-4">
-                Tài Liệu & Ebook Gốc Tải Về
+                Tủ Sách & Tài Liệu Chiêm Nghiệm Đi Kèm
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {EBOOKS.map((eb) => (
-                  <a
-                    key={eb.id}
-                    href={eb.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-4 rounded-xl bg-white border border-[#ECE7E1] hover:border-[#3D5A4C] transition-all flex items-center justify-between text-xs"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <FileText className="w-4 h-4 text-[#3D5A4C]" />
-                      <span className="font-semibold text-[#2D2A26]">{eb.title}</span>
+                  <div key={eb.id} className="p-4 bg-white rounded-2xl border border-[#ECE7E1] space-y-3 flex flex-col justify-between">
+                    <div>
+                      <div className="w-10 h-10 rounded-xl bg-[#3D5A4C]/10 text-[#3D5A4C] flex items-center justify-center mb-2">
+                        <BookOpen className="w-5 h-5" />
+                      </div>
+                      <h4 className="font-serif font-bold text-xs text-[#2D2A26] leading-snug">
+                        {eb.title}
+                      </h4>
                     </div>
-                    <ArrowRight className="w-3.5 h-3.5 text-[#8C7355]" />
-                  </a>
+                    <a
+                      href={eb.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs text-[#3D5A4C] font-semibold hover:underline"
+                    >
+                      <span>Đọc Ebook PDF</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
                 ))}
               </div>
             </div>
           </div>
         )}
 
-        {/* Tab 3: Journal List */}
+        {/* Tab 3: Journal Entries */}
         {activeTab === "journal" && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="font-serif text-xl font-bold text-[#2D2A26]">
-                  Lịch Sử Sổ Quán Sát Của Bạn ({journalEntries.length})
+                <h2 className="font-serif text-xl font-bold text-[#2D2A26] mb-1">
+                  Nhật Ký Quán Sát Thân Tâm Của Bạn
                 </h2>
                 <p className="text-xs text-[#7A7165]">
-                  Ghi chép hành trình quan sát cảm xúc và điểm tắc trên thân thể.
+                  Lược sử các lần quán sát các điểm đau trên cơ thể và bóc tách các tầng cảm xúc.
                 </p>
               </div>
+
               <Link
                 href="/journal"
                 className="px-4 py-2 rounded-xl zen-btn-primary text-xs font-semibold flex items-center gap-2 shadow-xs"
               >
-                <span>Viết Nhật Ký Hôm Nay</span>
-                <ArrowRight className="w-4 h-4" />
+                <BookOpen className="w-4 h-4" />
+                <span>Viết Nhật Ký Mới</span>
               </Link>
             </div>
 
             {journalEntries.length === 0 ? (
-              <div className="p-12 text-center bg-white rounded-2xl border border-dashed border-[#DDD7CD] text-xs text-[#8C847A] space-y-3">
-                <BookOpen className="w-8 h-8 text-[#8C7355] mx-auto opacity-60" />
-                <p>Bạn chưa có bài ghi chép quán sát nào.</p>
-                <Link href="/journal" className="inline-block text-[#3D5A4C] font-semibold underline">
-                  Bấm vào đây để viết bài đầu tiên
+              <div className="p-12 text-center bg-white rounded-2xl border border-[#ECE7E1] space-y-3">
+                <p className="text-xs text-[#7A7165]">
+                  Bạn chưa có bản ghi nhật ký nào. Hãy bắt đầu quán sát thân tâm sau mỗi buổi thiền!
+                </p>
+                <Link
+                  href="/journal"
+                  className="inline-block px-4 py-2 rounded-xl zen-btn-primary text-xs font-semibold"
+                >
+                  Mở Sổ Quán Sát Thân Tâm
                 </Link>
               </div>
             ) : (
               <div className="space-y-4">
-                {journalEntries.map((j) => (
-                  <div key={j.id} className="zen-card p-5 bg-white space-y-3">
-                    <div className="flex items-center justify-between text-xs text-[#8C7355] font-semibold">
-                      <span>{j.date || new Date(j.created_at).toLocaleDateString("vi-VN")}</span>
-                      <div className="flex gap-4">
-                        <span>Tâm trước thiền: <strong>{j.mood_before || j.moodBefore}/5</strong></span>
-                        <span>Tâm sau thiền: <strong className="text-[#3D5A4C]">{j.mood_after || j.moodAfter}/5</strong></span>
-                      </div>
+                {journalEntries.map((j: any, idx: number) => (
+                  <div key={j.id || idx} className="p-5 bg-white rounded-2xl border border-[#ECE7E1] space-y-3">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-[#3D5A4C]">
+                        {j.lesson_order ? `Bài Thiền ${j.lesson_order}` : "Quán sát tự do"}
+                      </span>
+                      <span className="text-[#9E9589]">
+                        {new Date(j.created_at).toLocaleDateString("vi-VN", {
+                          weekday: "short",
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </span>
                     </div>
 
-                    {(j.body_spots || j.bodySpots) && (
-                      <div className="flex flex-wrap gap-1.5">
-                        {(j.body_spots || j.bodySpots).map((spot: string, idx: number) => (
-                          <span key={idx} className="px-2.5 py-0.5 rounded-full bg-[#3D5A4C]/10 text-[#3D5A4C] text-[11px] font-medium">
-                            {spot}
-                          </span>
-                        ))}
+                    {j.body_spots && j.body_spots.length > 0 && (
+                      <div>
+                        <div className="text-[11px] font-semibold text-[#8C7355] mb-1">
+                          Điểm tắc nghẽn trên thân:
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {j.body_spots.map((spot: string, sIdx: number) => (
+                            <span key={sIdx} className="px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-900 text-[11px]">
+                              {spot}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     )}
 
-                    {(j.deep_layers || j.deepLayerText) && (
-                      <div className="text-xs border-l-2 border-[#8C7355] pl-3 py-1 text-[#4A453F]">
-                        <span className="font-semibold text-[#8C7355] block mb-0.5">Tầng sâu bên dưới:</span>
-                        {j.deep_layers || j.deepLayerText}
+                    {j.surface_emotions && j.surface_emotions.length > 0 && (
+                      <div>
+                        <div className="text-[11px] font-semibold text-[#8C7355] mb-1">
+                          Tầng cảm xúc bóc tách:
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {j.surface_emotions.map((emo: string, eIdx: number) => (
+                            <span key={eIdx} className="px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-900 text-[11px]">
+                              {emo}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     )}
 
-                    {(j.notes) && (
-                      <div className="text-xs border-l-2 border-[#3D5A4C] pl-3 py-1 text-[#4A453F]">
-                        <span className="font-semibold text-[#3D5A4C] block mb-0.5">Lời yêu thương bản thân:</span>
-                        {j.notes}
+                    {j.notes && (
+                      <div className="text-xs text-[#5C554E] italic bg-[#FAF8F5] p-3 rounded-xl border border-[#ECE7E1]/60">
+                        &quot;{j.notes}&quot;
                       </div>
                     )}
                   </div>
@@ -529,67 +641,75 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Tab 4: Bookings List */}
+        {/* Tab 4: Bookings */}
         {activeTab === "bookings" && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="font-serif text-xl font-bold text-[#2D2A26]">
-                  Lịch Hẹn Tư Vấn 1:1 Cùng Chị Minh Hằng
+                <h2 className="font-serif text-xl font-bold text-[#2D2A26] mb-1">
+                  Lịch Hẹn Tư Vấn 1:1 Đã Đăng Ký
                 </h2>
                 <p className="text-xs text-[#7A7165]">
-                  Thông tin các buổi tư vấn riêng đã được đặt lịch.
+                  Theo dõi trạng thái các buổi tư vấn riêng cùng Huấn luyện viên.
                 </p>
               </div>
+
               <Link
                 href="/booking"
                 className="px-4 py-2 rounded-xl zen-btn-primary text-xs font-semibold flex items-center gap-2 shadow-xs"
               >
-                <span>Đặt Thêm Lịch Hẹn Mới</span>
-                <ArrowRight className="w-4 h-4" />
+                <Calendar className="w-4 h-4" />
+                <span>Đặt Lịch Hẹn Mới</span>
               </Link>
             </div>
 
             {bookings.length === 0 ? (
-              <div className="p-12 text-center bg-white rounded-2xl border border-dashed border-[#DDD7CD] text-xs text-[#8C847A] space-y-3">
-                <Calendar className="w-8 h-8 text-[#8C7355] mx-auto opacity-60" />
-                <p>Bạn chưa có lịch hẹn tư vấn 1:1 nào.</p>
-                <Link href="/booking" className="inline-block text-[#3D5A4C] font-semibold underline">
-                  Bấm vào đây để đặt lịch hẹn với Chị Minh Hằng
+              <div className="p-12 text-center bg-white rounded-2xl border border-[#ECE7E1] space-y-3">
+                <p className="text-xs text-[#7A7165]">
+                  Bạn chưa có lịch hẹn tư vấn nào. Hãy đăng ký một buổi tư vấn 1:1 khi gặp bế tắc cảm xúc!
+                </p>
+                <Link
+                  href="/booking"
+                  className="inline-block px-4 py-2 rounded-xl zen-btn-primary text-xs font-semibold"
+                >
+                  Đăng Ký Tư Vấn 1:1
                 </Link>
               </div>
             ) : (
               <div className="space-y-4">
-                {bookings.map((b) => (
-                  <div key={b.id} className="zen-card p-5 bg-white space-y-3">
-                    <div className="flex items-center justify-between border-b border-[#F2EDE4] pb-2">
-                      <div className="font-serif font-bold text-sm text-[#2D2A26]">
-                        {b.topic}
+                {bookings.map((b: any) => (
+                  <div key={b.id} className="p-5 bg-white rounded-2xl border border-[#ECE7E1] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm text-[#2D2A26]">{b.topic}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          b.status === "confirmed"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : b.status === "completed"
+                            ? "bg-blue-100 text-blue-800"
+                            : "bg-amber-100 text-amber-800"
+                        }`}>
+                          {b.status === "confirmed" ? "Đã xác nhận" : b.status === "completed" ? "Đã xong" : "Chờ xác nhận"}
+                        </span>
                       </div>
-                      <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-semibold ${
-                        b.status === "confirmed" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
-                      }`}>
-                        {b.status === "confirmed" ? "Đã Xác Nhận" : "Chờ Xử Lý"}
-                      </span>
-                    </div>
-
-                    <div className="text-xs text-[#7A7165] flex flex-wrap items-center gap-4">
-                      <span>Thời gian: <strong className="text-[#2D2A26]">{b.booking_date} ({b.time_slot})</strong></span>
-                      <span>Hình thức: <strong className="text-[#3D5A4C] capitalize">{b.mode === "online" ? "Google Meet" : "Trực Tiếp (Hà Nội)"}</strong></span>
+                      <div className="text-xs text-[#8C7355]">
+                        Ngày {new Date(b.booking_date).toLocaleDateString("vi-VN")} • Khung giờ: {b.time_slot}
+                      </div>
+                      <div className="text-xs text-[#7A7165]">
+                        Hình thức: {b.mode === "online" ? "Online qua Google Meet" : "Trực tiếp (Hà Nội)"}
+                      </div>
                     </div>
 
                     {b.mode === "online" && (
-                      <div className="pt-2">
-                        <a
-                          href="https://meet.google.com/new"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#3D5A4C] text-white text-xs font-semibold hover:bg-[#31493D]"
-                        >
-                          <Video className="w-3.5 h-3.5" />
-                          <span>Vào Phòng Google Meet</span>
-                        </a>
-                      </div>
+                      <a
+                        href="https://meet.google.com/new"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 hover:bg-emerald-100 text-xs font-semibold flex items-center gap-1.5 transition-colors self-start sm:self-center"
+                      >
+                        <Video className="w-3.5 h-3.5" />
+                        <span>Vào Phòng Google Meet</span>
+                      </a>
                     )}
                   </div>
                 ))}
@@ -598,6 +718,90 @@ export default function DashboardPage() {
           </div>
         )}
       </main>
+
+      {/* Modal Lựa Chọn Coach Đồng Hành */}
+      {isCoachModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 max-h-[90vh] overflow-y-auto space-y-6 animate-scale-up">
+            <div className="flex items-center justify-between border-b border-[#ECE7E1] pb-4">
+              <div>
+                <h3 className="font-serif text-xl font-bold text-[#2D2A26]">
+                  Lựa Chọn Người Hướng Dẫn (Coach) Đồng Hành
+                </h3>
+                <p className="text-xs text-[#7A7165] mt-1">
+                  Chọn Huấn luyện viên phù hợp với năng lượng và vấn đề bế tắc bạn đang gặp phải
+                </p>
+              </div>
+              <button
+                onClick={() => setIsCoachModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-[#FAF8F5] flex items-center justify-center text-[#7A7165] hover:bg-[#ECE7E1] transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {coaches.map((c) => (
+                <div
+                  key={c.id}
+                  className={`p-5 rounded-2xl border transition-all ${
+                    selectedCoach.id === c.id
+                      ? "border-[#3D5A4C] bg-[#FAF8F5]"
+                      : "border-[#ECE7E1] hover:border-[#3D5A4C]/40 bg-white"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3.5">
+                      <div className="w-12 h-12 rounded-full bg-[#3D5A4C] text-white flex items-center justify-center font-serif text-lg font-bold shrink-0 shadow-xs">
+                        {c.avatarLetter}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-serif font-bold text-base text-[#2D2A26]">
+                            {c.fullName}
+                          </h4>
+                          {c.badge && (
+                            <span className="px-2 py-0.5 rounded-full bg-[#3D5A4C]/10 text-[#3D5A4C] text-[10px] font-bold">
+                              {c.badge}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-[#8C7355] font-semibold mt-0.5">
+                          {c.expertise}
+                        </div>
+                        <p className="text-xs text-[#5C554E] mt-2 leading-relaxed">
+                          {c.bio}
+                        </p>
+                        <div className="text-[11px] text-[#9E9589] mt-2 flex items-center gap-3">
+                          <span>{c.yearsExp} năm kinh nghiệm</span>
+                          <span>•</span>
+                          <span>Liên hệ Zalo: {c.phone}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="shrink-0">
+                      {selectedCoach.id === c.id ? (
+                        <span className="px-3 py-1.5 rounded-xl bg-[#3D5A4C] text-white text-xs font-semibold flex items-center gap-1 shadow-xs">
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Đang Chọn</span>
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleSelectCoach(c)}
+                          className="px-3.5 py-1.5 rounded-xl border border-[#3D5A4C] text-[#3D5A4C] hover:bg-[#3D5A4C] hover:text-white text-xs font-semibold transition-all"
+                        >
+                          Chọn Đồng Hành
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Zen Player Modal */}
       <ZenPlayerModal
@@ -608,4 +812,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-

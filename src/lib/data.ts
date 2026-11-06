@@ -46,6 +46,43 @@ export const BANK_CONFIG = {
   phoneSupport: "0906.115.528",
 };
 
+export interface CoachProfile {
+  id: string;
+  fullName: string;
+  roleTitle: string;
+  expertise: string;
+  bio: string;
+  phone: string;
+  yearsExp: number;
+  badge?: string;
+  avatarLetter: string;
+}
+
+export const DEFAULT_COACHES: CoachProfile[] = [
+  {
+    id: "coach-hang",
+    fullName: "Chị Minh Hằng",
+    roleTitle: "Sáng Lập Viên & Master Coach",
+    expertise: "Thiền Năng Lực Tự Nhiên & Chuyển Hoá Cảm Xúc Thân Tâm",
+    bio: "Hơn 10 năm nghiên cứu và ứng dụng Năng Lực Tự Nhiên, hỗ trợ hàng trăm học viên tháo gỡ bế tắc cảm xúc, đặt tay giải tỏa điểm đau thân thể và chạm về trạng thái tính Không an lạc.",
+    phone: "0906115528",
+    yearsExp: 10,
+    badge: "Trưởng Ban Hướng Dẫn",
+    avatarLetter: "H"
+  },
+  {
+    id: "coach-tue-an",
+    fullName: "Coach Tuệ An",
+    roleTitle: "Huấn Luyện Viên Thiền Thân Tâm",
+    expertise: "Quán Sát Thân Thể, Định Tâm & Hóa Giải Lo Âu",
+    bio: "Chuyên viên đồng hành xây dựng kỷ luật chánh niệm tại nhà, hỗ trợ học viên bóc tách từng lớp cảm xúc củ hành tây để tìm lại bình an nội tại.",
+    phone: "0906115528",
+    yearsExp: 5,
+    badge: "Chuyên Viên Thiền Khí",
+    avatarLetter: "A"
+  }
+];
+
 export const PACKAGES: PackagePlan[] = [
   {
     id: "pkg-digital-6",
