@@ -2,21 +2,33 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { 
-  ArrowLeft, 
-  ShieldCheck, 
-  Calendar, 
-  ShoppingBag, 
-  CheckCircle2, 
-  Phone, 
-  Video, 
+  Sparkles, 
   MessageCircle, 
+  Calendar, 
+  CreditCard, 
+  CheckCircle2, 
+  Clock, 
+  Search, 
+  Send, 
   RefreshCw, 
-  Lock, 
-  Search,
-  Send,
-  User,
-  Heart
+  User, 
+  ExternalLink,
+  ShieldCheck,
+  ShieldAlert,
+  Video,
+  Lock,
+  ArrowLeft,
+  ArrowRight,
+  Filter,
+  Check,
+  X,
+  LogIn,
+  LogOut,
+  Mail,
+  AlertCircle,
+  Loader2
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { createClient } from "@/lib/supabase/client";
@@ -29,7 +41,7 @@ interface Booking {
   mode: string;
   booking_date: string;
   time_slot: string;
-  symptoms_note?: string;
+  symptoms_note: string;
   status: string;
   created_at: string;
 }
@@ -40,6 +52,7 @@ interface Order {
   full_name: string;
   phone: string;
   package_name: string;
+  package_code: string;
   amount: number;
   status: string;
   created_at: string;
@@ -63,11 +76,21 @@ interface StudentThread {
 }
 
 export default function AdminPage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [pinCode, setPinCode] = useState("");
+  const router = useRouter();
+
+  // Auth & Role states
+  const [authStatus, setAuthStatus] = useState<"checking" | "unauthenticated" | "unauthorized" | "authorized">("checking");
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentProfile, setCurrentProfile] = useState<any>(null);
+
+  // Login form states (for unauthenticated users on this page)
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  // Tab & Data states
   const [activeTab, setActiveTab] = useState<"messages" | "bookings" | "orders">("messages");
-  
-  // Data states
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [threads, setThreads] = useState<StudentThread[]>([]);
@@ -82,30 +105,101 @@ export default function AdminPage() {
 
   const chatEndRef = useRef<HTMLDivElement | null>(null);
 
-  // Mã PIN quản trị mặc định (có thể đổi)
-  const ADMIN_PIN = "8888";
-
   useEffect(() => {
-    const savedAuth = sessionStorage.getItem("admin_auth");
-    if (savedAuth === "true") {
-      setIsAuthenticated(true);
-      fetchData();
-    }
+    checkAdminAuth();
   }, []);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [currentConversation]);
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (pinCode === ADMIN_PIN) {
-      setIsAuthenticated(true);
-      sessionStorage.setItem("admin_auth", "true");
-      fetchData();
-    } else {
-      alert("Mã PIN quản trị không đúng. Vui lòng thử lại!");
+  // Kiểm tra vai trò của người dùng hiện tại
+  const checkAdminAuth = async () => {
+    setAuthStatus("checking");
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        setAuthStatus("unauthenticated");
+        return;
+      }
+
+      setCurrentUser(user);
+
+      // Tra cứu bảng profiles để xác định vai trò
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+
+      setCurrentProfile(profile);
+
+      if (profile && (profile.role === "admin" || profile.role === "coach")) {
+        setAuthStatus("authorized");
+        fetchData();
+      } else {
+        setAuthStatus("unauthorized");
+      }
+    } catch (err) {
+      console.error("Lỗi xác thực quyền admin:", err);
+      setAuthStatus("unauthenticated");
     }
+  };
+
+  const handleAdminLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoggingIn(true);
+    setLoginError(null);
+
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: loginEmail,
+        password: loginPassword,
+      });
+
+      if (error) {
+        setLoginError(
+          error.message === "Invalid login credentials"
+            ? "Email hoặc mật khẩu không chính xác."
+            : error.message
+        );
+        setIsLoggingIn(false);
+        return;
+      }
+
+      if (data.user) {
+        setCurrentUser(data.user);
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", data.user.id)
+          .single();
+
+        setCurrentProfile(profile);
+
+        if (profile && (profile.role === "admin" || profile.role === "coach")) {
+          setAuthStatus("authorized");
+          fetchData();
+        } else {
+          setAuthStatus("unauthorized");
+        }
+      }
+    } catch {
+      setLoginError("Đã có lỗi xảy ra khi kết nối. Vui lòng thử lại!");
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    setCurrentUser(null);
+    setCurrentProfile(null);
+    setAuthStatus("unauthenticated");
   };
 
   const fetchData = async () => {
@@ -182,7 +276,8 @@ export default function AdminPage() {
       const supabase = createClient();
       const newMsg = {
         user_id: selectedThread.user_id,
-        sender_name: "Chị Minh Hằng",
+        sender_id: currentUser?.id || null,
+        sender_name: currentProfile?.full_name || "Chị Minh Hằng",
         content: replyText,
         is_from_coach: true,
       };
@@ -248,7 +343,7 @@ export default function AdminPage() {
       <Navbar />
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full flex-1">
-        {/* Top header */}
+        {/* Top header navigation */}
         <div className="flex items-center justify-between mb-8">
           <Link
             href="/"
@@ -258,8 +353,17 @@ export default function AdminPage() {
             <span>Quay về trang chủ</span>
           </Link>
 
-          {isAuthenticated && (
+          {authStatus === "authorized" && (
             <div className="flex items-center gap-3">
+              <div className="text-right hidden sm:block">
+                <div className="text-xs font-semibold text-[#2D2A26]">
+                  {currentProfile?.full_name || currentUser?.email}
+                </div>
+                <div className="text-[10px] text-[#3D5A4C] font-semibold uppercase tracking-wider">
+                  Vai trò: {currentProfile?.role === "coach" ? "Huấn luyện viên (Coach)" : "Quản trị viên (Admin)"}
+                </div>
+              </div>
+
               <button
                 onClick={fetchData}
                 disabled={isLoading}
@@ -268,62 +372,170 @@ export default function AdminPage() {
                 <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} />
                 <span>Làm Mới</span>
               </button>
+
               <button
-                onClick={() => {
-                  sessionStorage.removeItem("admin_auth");
-                  setIsAuthenticated(false);
-                }}
-                className="px-3.5 py-1.5 rounded-xl border border-[#E2DDD5] bg-[#F4EFE9] text-xs font-semibold text-[#7A7165] hover:bg-[#EAE4DC]"
+                onClick={handleLogout}
+                className="px-3.5 py-1.5 rounded-xl border border-[#E2DDD5] bg-[#F4EFE9] text-xs font-semibold text-[#7A7165] hover:bg-[#EAE4DC] flex items-center gap-1.5"
               >
-                Đăng Xuất
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Đăng Xuất</span>
               </button>
             </div>
           )}
         </div>
 
-        {/* PIN Login screen */}
-        {!isAuthenticated ? (
+        {/* 1. Trạng thái đang kiểm tra (Checking) */}
+        {authStatus === "checking" && (
+          <div className="max-w-md mx-auto my-20 text-center py-12">
+            <Loader2 className="w-8 h-8 text-[#3D5A4C] animate-spin mx-auto mb-4" />
+            <p className="text-sm font-medium text-[#7A7165]">
+              Đang xác thực quyền Quản trị viên...
+            </p>
+          </div>
+        )}
+
+        {/* 2. Trạng thái chưa đăng nhập (Unauthenticated) */}
+        {authStatus === "unauthenticated" && (
           <div className="max-w-md mx-auto my-12 zen-card p-8 bg-white text-center space-y-6">
             <div className="w-14 h-14 rounded-full bg-[#3D5A4C]/10 text-[#3D5A4C] mx-auto flex items-center justify-center">
               <Lock className="w-6 h-6" />
             </div>
             <div>
               <h2 className="font-serif text-2xl font-bold text-[#2D2A26]">
-                Không Gian Quản Trị • Chị Minh Hằng
+                Cổng Quản Trị • Chị Minh Hằng
               </h2>
-              <p className="text-xs text-[#7A7165] mt-1.5">
-                Nhập mã PIN để trả lời học viên, quản lý lịch hẹn và đơn hàng VietQR
+              <p className="text-xs text-[#7A7165] mt-1.5 leading-relaxed">
+                Vui lòng đăng nhập bằng tài khoản có vai trò <strong>Admin</strong> hoặc <strong>Coach</strong> để truy cập.
               </p>
             </div>
 
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <input
-                  type="password"
-                  maxLength={6}
-                  placeholder="Mã PIN (Mặc định: 8888)"
-                  value={pinCode}
-                  onChange={(e) => setPinCode(e.target.value)}
-                  className="w-full text-center text-lg tracking-widest px-4 py-3 rounded-xl border border-[#DED7CE] bg-[#FAF8F5] focus:outline-none focus:border-[#3D5A4C] font-mono"
-                />
+            {loginError && (
+              <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs text-center flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{loginError}</span>
               </div>
+            )}
+
+            <form onSubmit={handleAdminLogin} className="space-y-4 text-left">
+              <div>
+                <label className="block text-xs font-semibold text-[#5C554E] mb-1.5">
+                  Email Quản Trị
+                </label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-[#9E9589] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="email"
+                    required
+                    placeholder="admin@naturezen.vn"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    className="w-full text-xs pl-10 pr-4 py-3 rounded-xl border border-[#DED7CE] bg-[#FAF8F5] focus:outline-none focus:border-[#3D5A4C]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#5C554E] mb-1.5">
+                  Mật Khẩu
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-[#9E9589] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="password"
+                    required
+                    placeholder="••••••••"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    className="w-full text-xs pl-10 pr-4 py-3 rounded-xl border border-[#DED7CE] bg-[#FAF8F5] focus:outline-none focus:border-[#3D5A4C]"
+                  />
+                </div>
+              </div>
+
               <button
                 type="submit"
-                className="w-full py-3 rounded-xl zen-btn-primary font-semibold text-sm shadow-sm"
+                disabled={isLoggingIn}
+                className="w-full py-3 rounded-xl zen-btn-primary font-semibold text-sm shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                Vào Bảng Điều Khiển
+                {isLoggingIn ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Đang kiểm tra quyền...</span>
+                  </>
+                ) : (
+                  <>
+                    <LogIn className="w-4 h-4" />
+                    <span>Đăng Nhập Cổng Quản Trị</span>
+                  </>
+                )}
               </button>
             </form>
           </div>
-        ) : (
-          /* Admin Dashboard Content */
+        )}
+
+        {/* 3. Trạng thái không có quyền (Unauthorized - User có role = 'student') */}
+        {authStatus === "unauthorized" && (
+          <div className="max-w-lg mx-auto my-12 zen-card p-8 bg-white text-center space-y-6">
+            <div className="w-16 h-16 rounded-full bg-amber-50 text-amber-600 mx-auto flex items-center justify-center">
+              <ShieldAlert className="w-8 h-8" />
+            </div>
+            <div>
+              <h2 className="font-serif text-2xl font-bold text-[#2D2A26]">
+                Tài Khoản Không Có Quyền Quản Trị
+              </h2>
+              <p className="text-xs text-[#7A7165] mt-2 leading-relaxed">
+                Bạn đang đăng nhập bằng tài khoản <strong>{currentUser?.email}</strong>.
+              </p>
+              <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FAF8F5] border border-[#ECE7E1] text-xs">
+                <span className="text-[#8C7355]">Vai trò hiện tại:</span>
+                <span className="font-semibold text-[#3D5A4C] uppercase">
+                  {currentProfile?.role || "student"}
+                </span>
+              </div>
+              <p className="text-xs text-[#7A7165] mt-3 leading-relaxed">
+                Khu vực này chỉ dành riêng cho tài khoản được cấp vai trò <strong>admin</strong> hoặc <strong>coach</strong>.
+              </p>
+            </div>
+
+            <div className="p-4 bg-[#FAF8F5] rounded-xl border border-[#ECE7E1] text-left text-xs text-[#5C554E] space-y-2">
+              <div className="font-semibold text-[#2D2A26] flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-[#3D5A4C]" />
+                <span>Hướng dẫn cấp quyền Admin cho tài khoản này:</span>
+              </div>
+              <p className="text-[11px] text-[#7A7165]">
+                Nếu đây là tài khoản của Chị Minh Hằng, mở <strong>Supabase SQL Editor</strong> và chạy lệnh sau:
+              </p>
+              <code className="block p-2.5 rounded bg-white border border-[#DED7CE] font-mono text-[11px] text-[#3D5A4C] select-all break-all">
+                UPDATE public.profiles SET role = &apos;admin&apos; WHERE email = &apos;{currentUser?.email}&apos;;
+              </code>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <button
+                onClick={handleLogout}
+                className="flex-1 py-2.5 px-4 rounded-xl border border-[#DED7CE] bg-white hover:bg-[#F5F2ED] text-xs font-semibold text-[#5C554E] transition-colors"
+              >
+                Đăng Xuất Tài Khoản Này
+              </button>
+              <Link
+                href="/dashboard"
+                className="flex-1 py-2.5 px-4 rounded-xl zen-btn-primary text-xs font-semibold text-center shadow-sm flex items-center justify-center gap-1.5"
+              >
+                <span>Về Không Gian Học Viên</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* 4. Trạng thái đã xác thực quyền Admin/Coach (Authorized) */}
+        {authStatus === "authorized" && (
           <div className="space-y-6">
             {/* Title & Notification */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-[#ECE7E1]">
               <div>
                 <div className="text-xs font-bold uppercase tracking-wider text-[#8C7355] flex items-center gap-1.5 mb-1">
                   <ShieldCheck className="w-4 h-4 text-[#3D5A4C]" />
-                  <span>Cổng Dành Cho Chị Minh Hằng</span>
+                  <span>Cổng Quản Trị • Chị Minh Hằng</span>
                 </div>
                 <h1 className="font-serif text-2xl font-bold text-[#2D2A26]">
                   Tương Tác Học Viên & Vận Hành
@@ -372,7 +584,7 @@ export default function AdminPage() {
                 }`}
               >
                 <Calendar className="w-4 h-4" />
-                <span>Lịch Hẹn 1:1 ({bookings.length})</span>
+                <span>Lịch Hẹn Tư Vấn 1:1 ({bookings.length})</span>
               </button>
 
               <button
@@ -383,53 +595,53 @@ export default function AdminPage() {
                     : "border-transparent text-[#7A7165] hover:text-[#2D2A26]"
                 }`}
               >
-                <ShoppingBag className="w-4 h-4" />
-                <span>Đơn Hàng VietQR ({orders.length})</span>
+                <CreditCard className="w-4 h-4" />
+                <span>Đơn Chuyển Khoản VietQR ({orders.length})</span>
               </button>
             </div>
 
-            {/* Tab 1: Messages / Conversation Center */}
+            {/* TAB 1: 1-ON-1 MESSAGES INBOX */}
             {activeTab === "messages" && (
-              <div className="zen-card bg-white grid grid-cols-1 md:grid-cols-12 h-[650px] overflow-hidden border border-[#ECE7E1]">
-                {/* Left list: Student threads */}
-                <div className="md:col-span-4 border-r border-[#ECE7E1] flex flex-col h-full bg-[#FAF8F5]/50">
-                  <div className="p-4 border-b border-[#ECE7E1] font-serif font-bold text-sm text-[#2D2A26]">
-                    Danh sách học viên ({threads.length})
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-6 bg-white rounded-2xl border border-[#ECE7E1] overflow-hidden min-h-[550px]">
+                {/* Left: Thread list */}
+                <div className="md:col-span-4 border-r border-[#ECE7E1] flex flex-col bg-[#FAF8F5]/50">
+                  <div className="p-4 border-b border-[#ECE7E1] bg-white font-semibold text-xs uppercase tracking-wider text-[#8C7355]">
+                    Danh Sách Học Viên ({threads.length})
                   </div>
-                  <div className="flex-1 overflow-y-auto divide-y divide-[#ECE7E1]">
+                  <div className="flex-1 overflow-y-auto divide-y divide-[#ECE7E1]/60">
                     {threads.length === 0 ? (
-                      <div className="p-8 text-center text-xs text-[#8C847A]">
-                        Chưa có học viên nào gửi tin nhắn.
+                      <div className="p-8 text-center text-xs text-[#9E9589]">
+                        Chưa có tin nhắn nào từ học viên.
                       </div>
                     ) : (
                       threads.map((t) => (
                         <button
                           key={t.user_id}
                           onClick={() => selectStudentThread(t)}
-                          className={`w-full p-4 text-left flex items-start gap-3 transition-colors ${
+                          className={`w-full text-left p-4 transition-all hover:bg-white flex items-start gap-3 ${
                             selectedThread?.user_id === t.user_id
                               ? "bg-white border-l-4 border-[#3D5A4C] shadow-xs"
-                              : "hover:bg-white/80"
+                              : ""
                           }`}
                         >
-                          <div className="w-9 h-9 rounded-full bg-[#3D5A4C]/10 text-[#3D5A4C] flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
-                            {t.student_name[0]?.toUpperCase() || <User className="w-4 h-4" />}
+                          <div className="w-9 h-9 rounded-full bg-[#3D5A4C]/10 text-[#3D5A4C] flex items-center justify-center font-bold text-xs shrink-0">
+                            {t.student_name.charAt(0).toUpperCase()}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="font-semibold text-xs text-[#2D2A26] truncate">
-                              {t.student_name}
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-bold text-[#2D2A26] truncate">
+                                {t.student_name}
+                              </span>
+                              <span className="text-[10px] text-[#9E9589]">
+                                {new Date(t.updated_at).toLocaleDateString("vi-VN", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
                             </div>
-                            <div className="text-[11px] text-[#7A7165] truncate mt-0.5">
+                            <p className="text-xs text-[#7A7165] truncate leading-tight">
                               {t.last_message}
-                            </div>
-                            <div className="text-[10px] text-[#A39A8F] mt-1">
-                              {new Date(t.updated_at).toLocaleTimeString("vi-VN", {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                                day: "2-digit",
-                                month: "2-digit",
-                              })}
-                            </div>
+                            </p>
                           </div>
                         </button>
                       ))
@@ -437,65 +649,74 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                {/* Right chat panel: Coach replies */}
-                <div className="md:col-span-8 flex flex-col h-full">
+                {/* Right: Message conversation stream & Reply form */}
+                <div className="md:col-span-8 flex flex-col">
                   {selectedThread ? (
                     <>
-                      {/* Chat header */}
-                      <div className="px-6 py-4 border-b border-[#ECE7E1] bg-white flex items-center justify-between">
-                        <div>
-                          <div className="font-serif font-bold text-sm text-[#2D2A26]">
-                            Học viên: {selectedThread.student_name}
+                      {/* Thread Header */}
+                      <div className="p-4 border-b border-[#ECE7E1] bg-white flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-[#3D5A4C] text-white flex items-center justify-center font-bold text-xs">
+                            {selectedThread.student_name.charAt(0).toUpperCase()}
                           </div>
-                          <div className="text-[11px] text-[#8C7355]">
-                            Đoạn hội thoại tư vấn & đồng hành 1:1
+                          <div>
+                            <div className="text-sm font-bold text-[#2D2A26]">
+                              {selectedThread.student_name}
+                            </div>
+                            <div className="text-[11px] text-[#8C7355]">
+                              Luồng tâm sự & hướng dẫn thiền riêng tư
+                            </div>
                           </div>
                         </div>
 
-                        <a
-                          href="https://meet.google.com/new"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-3 py-1.5 rounded-lg bg-[#3D5A4C] text-white hover:bg-[#31493D] text-xs font-semibold flex items-center gap-1.5 shadow-xs"
-                        >
-                          <Video className="w-3.5 h-3.5" />
-                          <span>Mở Meet Tư Vấn</span>
-                        </a>
+                        <div className="text-xs text-[#9E9589]">
+                          ID: {selectedThread.user_id.slice(0, 8)}...
+                        </div>
                       </div>
 
                       {/* Chat messages stream */}
-                      <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-[#FAF8F5]/30">
-                        {currentConversation.map((m) => (
+                      <div className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-4 max-h-[420px] bg-[#FAF8F5]/30">
+                        {currentConversation.map((msg) => (
                           <div
-                            key={m.id}
-                            className={`flex flex-col ${m.is_from_coach ? "items-end" : "items-start"}`}
+                            key={msg.id}
+                            className={`flex flex-col ${
+                              msg.is_from_coach ? "items-end" : "items-start"
+                            }`}
                           >
-                            <div className="text-[11px] text-[#8C847A] mb-1 px-1">
-                              {m.is_from_coach ? "Bạn (Chị Minh Hằng)" : selectedThread.student_name} •{" "}
-                              {new Date(m.created_at).toLocaleTimeString("vi-VN", {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
+                            <div className="flex items-center gap-2 mb-1 text-[11px]">
+                              <span className="font-semibold text-[#5C554E]">
+                                {msg.sender_name}
+                              </span>
+                              <span className="text-[#9E9589]">
+                                {new Date(msg.created_at).toLocaleTimeString("vi-VN", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
                             </div>
+
                             <div
-                              className={`max-w-md p-4 rounded-2xl text-xs sm:text-sm leading-relaxed ${
-                                m.is_from_coach
-                                  ? "bg-[#3D5A4C] text-white rounded-tr-xs shadow-sm"
-                                  : "bg-white border border-[#ECE7E1] text-[#2D2A26] rounded-tl-xs shadow-xs"
+                              className={`p-3.5 rounded-2xl max-w-lg text-xs sm:text-sm leading-relaxed shadow-xs ${
+                                msg.is_from_coach
+                                  ? "bg-[#3D5A4C] text-white rounded-br-xs"
+                                  : "bg-white text-[#2D2A26] border border-[#ECE7E1] rounded-bl-xs"
                               }`}
                             >
-                              {m.content}
+                              {msg.content}
                             </div>
                           </div>
                         ))}
                         <div ref={chatEndRef} />
                       </div>
 
-                      {/* Reply form */}
-                      <form onSubmit={handleSendCoachReply} className="p-4 border-t border-[#ECE7E1] bg-white flex items-center gap-3">
+                      {/* Coach Reply Form */}
+                      <form
+                        onSubmit={handleSendCoachReply}
+                        className="p-4 border-t border-[#ECE7E1] bg-white flex items-center gap-3"
+                      >
                         <input
                           type="text"
-                          placeholder={`Gõ lời nhắn / phản hồi cho bạn ${selectedThread.student_name}...`}
+                          placeholder={`Viết lời hướng dẫn hoặc phản hồi cho ${selectedThread.student_name}...`}
                           value={coachReply}
                           onChange={(e) => setCoachReply(e.target.value)}
                           className="flex-1 text-xs sm:text-sm px-4 py-3 rounded-xl border border-[#DED7CE] bg-[#FAF8F5] focus:outline-none focus:border-[#3D5A4C]"
@@ -505,222 +726,246 @@ export default function AdminPage() {
                           disabled={isSending || !coachReply.trim()}
                           className="px-5 py-3 rounded-xl zen-btn-primary font-semibold text-xs sm:text-sm flex items-center gap-2 shadow-sm disabled:opacity-50 shrink-0"
                         >
-                          <span>Gửi Phản Hồi</span>
+                          <span>Trả Lời</span>
                           <Send className="w-4 h-4" />
                         </button>
                       </form>
                     </>
                   ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-center p-8 text-xs text-[#8C847A]">
-                      Chọn một học viên ở cột bên trái để bắt đầu đọc và trả lời tâm sự.
+                    <div className="flex-1 flex items-center justify-center text-xs text-[#9E9589] p-8">
+                      Chọn một học viên từ cột bên trái để đọc tâm sự và gửi phản hồi.
                     </div>
                   )}
                 </div>
               </div>
             )}
 
-            {/* Tab 2: Bookings List */}
+            {/* TAB 2: CONSULTATION BOOKINGS */}
             {activeTab === "bookings" && (
-              <div className="space-y-4">
-                {bookings.length === 0 ? (
-                  <div className="p-12 text-center bg-white rounded-2xl border border-dashed border-[#DDD7CD] text-xs text-[#8C847A]">
-                    Chưa có lịch hẹn nào được ghi nhận.
-                  </div>
-                ) : (
-                  bookings.map((b) => (
-                    <div
-                      key={b.id}
-                      className="zen-card p-5 bg-white border border-[#ECE7E1] space-y-4 hover:border-[#3D5A4C]/40 transition-all"
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#F2EDE4] pb-3">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-serif font-bold text-base text-[#2D2A26]">
-                              {b.full_name}
-                            </span>
-                            <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-semibold ${
-                              b.status === "confirmed"
-                                ? "bg-emerald-100 text-emerald-800"
-                                : b.status === "completed"
-                                ? "bg-blue-100 text-blue-800"
-                                : "bg-amber-100 text-amber-800"
-                            }`}>
-                              {b.status === "confirmed" ? "Đã Xác Nhận" : b.status === "completed" ? "Đã Hoàn Thành" : "Chờ Xử Lý"}
-                            </span>
-                          </div>
-                          <div className="text-xs text-[#7A7165] mt-0.5 flex items-center gap-3">
-                            <span>SĐT: <strong className="text-[#2D2A26]">{b.phone}</strong></span>
-                            <span>•</span>
-                            <span className="capitalize">Hình thức: <strong>{b.mode === "online" ? "Google Meet" : "Trực Tiếp (Hà Nội)"}</strong></span>
-                          </div>
-                        </div>
+              <div className="bg-white rounded-2xl border border-[#ECE7E1] overflow-hidden">
+                <div className="p-4 sm:p-6 border-b border-[#ECE7E1] flex items-center justify-between">
+                  <h3 className="font-serif text-lg font-bold text-[#2D2A26]">
+                    Danh Sách Lịch Tư Vấn 1:1 Cùng Chị Minh Hằng
+                  </h3>
+                  <span className="text-xs text-[#8C7355] font-medium">
+                    Tổng số: {bookings.length} lịch hẹn
+                  </span>
+                </div>
 
-                        {/* Quick actions for Coach */}
-                        <div className="flex items-center gap-2">
-                          <a
-                            href={`tel:${b.phone}`}
-                            className="p-2 rounded-xl border border-[#DED7CE] hover:bg-[#FAF8F5] text-[#3D5A4C]"
-                            title="Gọi điện"
-                          >
-                            <Phone className="w-4 h-4" />
-                          </a>
-                          <a
-                            href={`https://zalo.me/${b.phone}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-2 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200"
-                            title="Nhắn tin Zalo"
-                          >
-                            <MessageCircle className="w-4 h-4" />
-                          </a>
-                          {b.mode === "online" && (
-                            <a
-                              href="https://meet.google.com/new"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="px-3 py-1.5 rounded-xl bg-[#3D5A4C] text-white hover:bg-[#31493D] text-xs font-semibold flex items-center gap-1.5 shadow-xs"
-                            >
-                              <Video className="w-3.5 h-3.5" />
-                              <span>Mở Meet</span>
-                            </a>
-                          )}
-                        </div>
-                      </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#FAF8F5] text-[#5C554E] border-b border-[#ECE7E1]">
+                      <tr>
+                        <th className="p-4 font-bold">Học Viên</th>
+                        <th className="p-4 font-bold">Số Điện Thoại / Zalo</th>
+                        <th className="p-4 font-bold">Chủ Đề Tư Vấn</th>
+                        <th className="p-4 font-bold">Hình Thức</th>
+                        <th className="p-4 font-bold">Ngày & Khung Giờ</th>
+                        <th className="p-4 font-bold">Vấn Đề Bế Tắc</th>
+                        <th className="p-4 font-bold">Trạng Thái</th>
+                        <th className="p-4 font-bold text-right">Thao Tác</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#ECE7E1]">
+                      {bookings.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="p-8 text-center text-[#9E9589]">
+                            Chưa có lịch hẹn tư vấn nào được ghi nhận.
+                          </td>
+                        </tr>
+                      ) : (
+                        bookings
+                          .filter(
+                            (b) =>
+                              b.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                              b.phone?.includes(searchTerm)
+                          )
+                          .map((b) => (
+                            <tr key={b.id} className="hover:bg-[#FAF8F5]/50 transition-colors">
+                              <td className="p-4 font-bold text-[#2D2A26]">{b.full_name}</td>
+                              <td className="p-4">
+                                <a
+                                  href={`https://zalo.me/${b.phone.replace(/[^0-9]/g, "")}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[#3D5A4C] font-semibold hover:underline flex items-center gap-1"
+                                >
+                                  {b.phone}
+                                  <ExternalLink className="w-3 h-3 text-[#9E9589]" />
+                                </a>
+                              </td>
+                              <td className="p-4 text-[#4A453F] max-w-[180px]">{b.topic}</td>
+                              <td className="p-4">
+                                <span
+                                  className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${
+                                    b.mode === "online"
+                                      ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                                      : "bg-amber-50 text-amber-800 border border-amber-200"
+                                  }`}
+                                >
+                                  {b.mode === "online" ? "Google Meet" : "Trực Tiếp (HN)"}
+                                </span>
+                              </td>
+                              <td className="p-4 font-medium text-[#2D2A26]">
+                                <div>{new Date(b.booking_date).toLocaleDateString("vi-VN")}</div>
+                                <div className="text-[11px] text-[#8C7355]">{b.time_slot}</div>
+                              </td>
+                              <td className="p-4 text-[#665E55] max-w-xs text-[11px] leading-relaxed">
+                                {b.symptoms_note || "Chưa có ghi chú"}
+                              </td>
+                              <td className="p-4">
+                                <span
+                                  className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${
+                                    b.status === "confirmed"
+                                      ? "bg-emerald-100 text-emerald-800"
+                                      : b.status === "completed"
+                                      ? "bg-blue-100 text-blue-800"
+                                      : b.status === "cancelled"
+                                      ? "bg-red-100 text-red-800"
+                                      : "bg-amber-100 text-amber-800"
+                                  }`}
+                                >
+                                  {b.status === "confirmed"
+                                    ? "Đã xác nhận"
+                                    : b.status === "completed"
+                                    ? "Đã hoàn thành"
+                                    : b.status === "cancelled"
+                                    ? "Đã hủy"
+                                    : "Chờ xác nhận"}
+                                </span>
+                              </td>
+                              <td className="p-4 text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  {b.mode === "online" && (
+                                    <a
+                                      href="https://meet.google.com/new"
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                                      title="Mở phòng Google Meet"
+                                    >
+                                      <Video className="w-3.5 h-3.5" />
+                                    </a>
+                                  )}
 
-                      {/* Details */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                        <div className="p-3 bg-[#FAF8F5] rounded-xl space-y-1">
-                          <div className="text-[11px] text-[#8C847A] uppercase font-bold">Chủ đề tư vấn:</div>
-                          <div className="font-semibold text-[#2D2A26]">{b.topic}</div>
-                        </div>
-                        <div className="p-3 bg-[#FAF8F5] rounded-xl space-y-1">
-                          <div className="text-[11px] text-[#8C847A] uppercase font-bold">Thời gian hẹn:</div>
-                          <div className="font-semibold text-[#8C7355]">
-                            {b.booking_date} ({b.time_slot})
-                          </div>
-                        </div>
-                      </div>
+                                  {b.status === "pending" && (
+                                    <button
+                                      onClick={() => handleUpdateBookingStatus(b.id, "confirmed")}
+                                      className="px-2 py-1 rounded-lg bg-[#3D5A4C] text-white text-[11px] font-semibold hover:bg-[#2D4539]"
+                                    >
+                                      Duyệt
+                                    </button>
+                                  )}
 
-                      {/* Intake note */}
-                      {b.symptoms_note && (
-                        <div className="p-3 rounded-xl bg-[#F9F6F0] border-l-4 border-[#8C7355] text-xs space-y-1">
-                          <div className="font-bold text-[#8C7355]">Vấn đề & Tâm sự của học viên trước buổi gặp:</div>
-                          <p className="text-[#4A453F] leading-relaxed italic">
-                            "{b.symptoms_note}"
-                          </p>
-                        </div>
+                                  {b.status === "confirmed" && (
+                                    <button
+                                      onClick={() => handleUpdateBookingStatus(b.id, "completed")}
+                                      className="px-2 py-1 rounded-lg bg-blue-600 text-white text-[11px] font-semibold hover:bg-blue-700"
+                                    >
+                                      Xong
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))
                       )}
-
-                      {/* Status toggle button */}
-                      <div className="flex items-center justify-end gap-2 pt-1">
-                        {b.status !== "confirmed" && (
-                          <button
-                            onClick={() => handleUpdateBookingStatus(b.id, "confirmed")}
-                            className="px-3 py-1.5 rounded-lg border border-emerald-600 text-emerald-700 hover:bg-emerald-50 text-xs font-semibold flex items-center gap-1"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>Đánh dấu Đã Xác Nhận</span>
-                          </button>
-                        )}
-                        {b.status !== "completed" && (
-                          <button
-                            onClick={() => handleUpdateBookingStatus(b.id, "completed")}
-                            className="px-3 py-1.5 rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 text-xs font-semibold flex items-center gap-1"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>Đã Tư Vấn Xong</span>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
 
-            {/* Tab 3: Orders List */}
+            {/* TAB 3: VIETQR ORDERS */}
             {activeTab === "orders" && (
-              <div className="space-y-4">
-                {orders.length === 0 ? (
-                  <div className="p-12 text-center bg-white rounded-2xl border border-dashed border-[#DDD7CD] text-xs text-[#8C847A]">
-                    Chưa có đơn hàng nào được tạo.
-                  </div>
-                ) : (
-                  orders.map((o) => (
-                    <div
-                      key={o.id}
-                      className="zen-card p-5 bg-white border border-[#ECE7E1] space-y-4 hover:border-[#3D5A4C]/40 transition-all"
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#F2EDE4] pb-3">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono font-bold text-sm text-[#3D5A4C] bg-[#3D5A4C]/10 px-2.5 py-0.5 rounded-md">
-                              {o.order_code}
-                            </span>
-                            <span className="font-serif font-bold text-base text-[#2D2A26]">
-                              {o.full_name}
-                            </span>
-                            <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-semibold ${
-                              o.status === "paid"
-                                ? "bg-emerald-100 text-emerald-800"
-                                : "bg-amber-100 text-amber-800"
-                            }`}>
-                              {o.status === "paid" ? "Đã Thanh Toán" : "Chờ Chuyển Khoản"}
-                            </span>
-                          </div>
-                          <div className="text-xs text-[#7A7165] mt-1">
-                            SĐT: <strong className="text-[#2D2A26]">{o.phone}</strong> • Gói: <strong className="text-[#8C7355]">{o.package_name}</strong>
-                          </div>
-                        </div>
+              <div className="bg-white rounded-2xl border border-[#ECE7E1] overflow-hidden">
+                <div className="p-4 sm:p-6 border-b border-[#ECE7E1] flex items-center justify-between">
+                  <h3 className="font-serif text-lg font-bold text-[#2D2A26]">
+                    Danh Sách Đơn Đăng Ký Khóa Học & Chuyển Khoản VietQR
+                  </h3>
+                  <span className="text-xs text-[#8C7355] font-medium">
+                    Tổng số: {orders.length} đơn hàng
+                  </span>
+                </div>
 
-                        <div className="text-right">
-                          <div className="font-serif font-bold text-lg text-[#2D2A26]">
-                            {Number(o.amount).toLocaleString("vi-VN")} đ
-                          </div>
-                          <div className="text-[11px] text-[#A39A8F]">
-                            {new Date(o.created_at).toLocaleDateString("vi-VN", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              day: "2-digit",
-                              month: "2-digit",
-                              year: "numeric"
-                            })}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Action buttons */}
-                      <div className="flex items-center justify-between pt-1">
-                        <a
-                          href={`https://zalo.me/${o.phone}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-blue-700 hover:underline flex items-center gap-1 font-semibold"
-                        >
-                          <MessageCircle className="w-3.5 h-3.5" />
-                          <span>Nhắn Zalo cho học viên</span>
-                        </a>
-
-                        <div className="flex items-center gap-2">
-                          {o.status !== "paid" ? (
-                            <button
-                              onClick={() => handleUpdateOrderStatus(o.id, "paid")}
-                              className="px-4 py-2 rounded-xl bg-[#3D5A4C] text-white hover:bg-[#31493D] text-xs font-semibold flex items-center gap-1.5 shadow-sm"
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>Xác Nhận Đã Nhận Tiền</span>
-                            </button>
-                          ) : (
-                            <span className="text-xs text-emerald-700 font-semibold flex items-center gap-1">
-                              <CheckCircle2 className="w-4 h-4" />
-                              <span>Đã kích hoạt khóa học</span>
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#FAF8F5] text-[#5C554E] border-b border-[#ECE7E1]">
+                      <tr>
+                        <th className="p-4 font-bold">Mã Đơn / Nội Dung CK</th>
+                        <th className="p-4 font-bold">Học Viên</th>
+                        <th className="p-4 font-bold">Số Điện Thoại</th>
+                        <th className="p-4 font-bold">Gói Đăng Ký</th>
+                        <th className="p-4 font-bold">Số Tiền</th>
+                        <th className="p-4 font-bold">Thời Gian</th>
+                        <th className="p-4 font-bold">Trạng Thái</th>
+                        <th className="p-4 font-bold text-right">Xử Lý</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#ECE7E1]">
+                      {orders.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="p-8 text-center text-[#9E9589]">
+                            Chưa có đơn hàng nào được tạo.
+                          </td>
+                        </tr>
+                      ) : (
+                        orders
+                          .filter(
+                            (o) =>
+                              o.order_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                              o.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                              o.phone?.includes(searchTerm)
+                          )
+                          .map((o) => (
+                            <tr key={o.id} className="hover:bg-[#FAF8F5]/50 transition-colors">
+                              <td className="p-4 font-mono font-bold text-[#3D5A4C]">
+                                {o.order_code}
+                              </td>
+                              <td className="p-4 font-bold text-[#2D2A26]">{o.full_name}</td>
+                              <td className="p-4">{o.phone}</td>
+                              <td className="p-4 font-medium text-[#4A453F]">{o.package_name}</td>
+                              <td className="p-4 font-bold text-[#2D2A26]">
+                                {Number(o.amount).toLocaleString("vi-VN")} đ
+                              </td>
+                              <td className="p-4 text-[#9E9589] text-[11px]">
+                                {new Date(o.created_at).toLocaleString("vi-VN")}
+                              </td>
+                              <td className="p-4">
+                                <span
+                                  className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${
+                                    o.status === "paid"
+                                      ? "bg-emerald-100 text-emerald-800"
+                                      : o.status === "cancelled"
+                                      ? "bg-red-100 text-red-800"
+                                      : "bg-amber-100 text-amber-800"
+                                  }`}
+                                >
+                                  {o.status === "paid"
+                                    ? "Đã chuyển khoản"
+                                    : o.status === "cancelled"
+                                    ? "Đã hủy"
+                                    : "Chờ chuyển khoản"}
+                                </span>
+                              </td>
+                              <td className="p-4 text-right">
+                                {o.status === "pending" ? (
+                                  <button
+                                    onClick={() => handleUpdateOrderStatus(o.id, "paid")}
+                                    className="px-3 py-1.5 rounded-lg bg-[#3D5A4C] text-white text-[11px] font-semibold hover:bg-[#2D4539] transition-colors"
+                                  >
+                                    Xác Nhận Đã Nhận Tiền
+                                  </button>
+                                ) : (
+                                  <span className="text-[11px] text-[#9E9589]">Đã kích hoạt</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </div>

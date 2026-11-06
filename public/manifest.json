@@ -1,0 +1,17 @@
+{
+  "name": "Năng Lực Tự Nhiên • Minh Hằng Thiền",
+  "short_name": "Minh Hằng Thiền",
+  "description": "Tư vấn phát triển theo năng lực tự nhiên, thấu hiểu và chuyển hoá cảm xúc cùng Chị Minh Hằng",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAF8F5",
+  "theme_color": "#3D5A4C",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
