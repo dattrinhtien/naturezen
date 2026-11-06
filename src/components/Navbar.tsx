@@ -2,21 +2,46 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Sparkles, Headphones, BookOpen, Calendar, User, LogIn, LayoutDashboard } from "lucide-react";
+import { Sparkles, Headphones, BookOpen, Calendar, User, LogIn, LayoutDashboard, ShieldCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 export default function Navbar({ onOpenPlayer, onOpenBooking }: { onOpenPlayer?: () => void; onOpenBooking?: () => void }) {
   const [user, setUser] = useState<any>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
     try {
       const supabase = createClient();
+
+      const loadRole = async (uid: string) => {
+        try {
+          const { data } = await supabase
+            .from("profiles")
+            .select("role")
+            .eq("id", uid)
+            .single();
+          if (data?.role) setUserRole(data.role);
+        } catch {
+          // ignore
+        }
+      };
+
       supabase.auth.getUser().then(({ data }) => {
-        if (data?.user) setUser(data.user);
+        if (data?.user) {
+          setUser(data.user);
+          loadRole(data.user.id);
+        }
       });
+
       const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
         setUser(session?.user || null);
+        if (session?.user) {
+          loadRole(session.user.id);
+        } else {
+          setUserRole(null);
+        }
       });
+
       return () => {
         authListener?.subscription?.unsubscribe();
       };
@@ -24,6 +49,8 @@ export default function Navbar({ onOpenPlayer, onOpenBooking }: { onOpenPlayer?:
       // Supabase credentials not set or client error
     }
   }, []);
+
+  const isAdminOrCoach = userRole === "admin" || userRole === "coach";
 
   return (
     <header className="sticky top-0 z-50 backdrop-blur-md bg-[#FAF8F5]/90 border-b border-[#ECE7E1]">
@@ -61,6 +88,7 @@ export default function Navbar({ onOpenPlayer, onOpenBooking }: { onOpenPlayer?:
             <Calendar className="w-4 h-4 text-[#8C7355]" />
             Đặt Lịch 1:1
           </Link>
+
           {user && (
             <Link 
               href="/dashboard" 
@@ -68,6 +96,16 @@ export default function Navbar({ onOpenPlayer, onOpenBooking }: { onOpenPlayer?:
             >
               <LayoutDashboard className="w-4 h-4" />
               Góc Học Viên
+            </Link>
+          )}
+
+          {isAdminOrCoach && (
+            <Link 
+              href="/admin" 
+              className="text-amber-800 font-semibold flex items-center gap-1.5 px-3 py-1 bg-amber-100/70 border border-amber-300/50 rounded-full text-xs"
+            >
+              <ShieldCheck className="w-4 h-4 text-amber-700" />
+              Cổng Quản Trị
             </Link>
           )}
         </nav>
@@ -84,14 +122,26 @@ export default function Navbar({ onOpenPlayer, onOpenBooking }: { onOpenPlayer?:
           )}
 
           {user ? (
-            <Link
-              href="/dashboard"
-              className="px-4 py-2 text-xs sm:text-sm font-medium rounded-full zen-btn-primary shadow-sm hover:shadow flex items-center gap-2"
-            >
-              <User className="w-4 h-4" />
-              <span className="hidden sm:inline">Không Gian Của Bạn</span>
-              <span className="sm:hidden">Góc Riêng</span>
-            </Link>
+            <div className="flex items-center gap-2">
+              {isAdminOrCoach ? (
+                <Link
+                  href="/admin"
+                  className="px-4 py-2 text-xs sm:text-sm font-medium rounded-full bg-[#3D5A4C] text-white hover:bg-[#2D4539] shadow-sm flex items-center gap-2"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Quản Trị</span>
+                </Link>
+              ) : (
+                <Link
+                  href="/dashboard"
+                  className="px-4 py-2 text-xs sm:text-sm font-medium rounded-full zen-btn-primary shadow-sm hover:shadow flex items-center gap-2"
+                >
+                  <User className="w-4 h-4" />
+                  <span className="hidden sm:inline">Không Gian Của Bạn</span>
+                  <span className="sm:hidden">Góc Riêng</span>
+                </Link>
+              )}
+            </div>
           ) : (
             <div className="flex items-center gap-2">
               <Link
