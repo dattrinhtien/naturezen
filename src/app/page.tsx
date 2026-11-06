@@ -461,6 +461,8 @@ export default function Home() {
               <li><a href="#chuoi-thien" className="hover:text-white">6 Bài thiền chuyển hoá</a></li>
               <li><Link href="/journal" className="hover:text-white">Sổ quán sát thân tâm</Link></li>
               <li><Link href="/booking" className="hover:text-white">Đặt lịch tư vấn 1:1</Link></li>
+              <li><Link href="/dashboard" className="hover:text-white text-emerald-400 font-medium">Không gian học viên</Link></li>
+              <li><Link href="/admin" className="hover:text-white text-[#8C7355]">Cổng quản trị Chị Hằng</Link></li>
             </ul>
           </div>
 

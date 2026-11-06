@@ -1,9 +1,30 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Sparkles, Headphones, BookOpen, Calendar, HeartHandshake } from "lucide-react";
+import { Sparkles, Headphones, BookOpen, Calendar, User, LogIn, LayoutDashboard } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 export default function Navbar({ onOpenPlayer, onOpenBooking }: { onOpenPlayer?: () => void; onOpenBooking?: () => void }) {
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    try {
+      const supabase = createClient();
+      supabase.auth.getUser().then(({ data }) => {
+        if (data?.user) setUser(data.user);
+      });
+      const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+        setUser(session?.user || null);
+      });
+      return () => {
+        authListener?.subscription?.unsubscribe();
+      };
+    } catch {
+      // Supabase credentials not set or client error
+    }
+  }, []);
+
   return (
     <header className="sticky top-0 z-50 backdrop-blur-md bg-[#FAF8F5]/90 border-b border-[#ECE7E1]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
@@ -21,17 +42,17 @@ export default function Navbar({ onOpenPlayer, onOpenBooking }: { onOpenPlayer?:
           </div>
         </Link>
 
-        <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-[#5C554E]">
-          <a href="#triet-ly" className="hover:text-[#3D5A4C] transition-colors">
+        <nav className="hidden md:flex items-center gap-6 lg:gap-8 text-sm font-medium text-[#5C554E]">
+          <Link href="/#triet-ly" className="hover:text-[#3D5A4C] transition-colors">
             Triết Lý
-          </a>
-          <a href="#chuoi-thien" className="hover:text-[#3D5A4C] transition-colors flex items-center gap-1.5">
+          </Link>
+          <Link href="/#chuoi-thien" className="hover:text-[#3D5A4C] transition-colors flex items-center gap-1.5">
             <Headphones className="w-4 h-4 text-[#8C7355]" />
             6 Bài Thiền
-          </a>
-          <a href="#goi-san-pham" className="hover:text-[#3D5A4C] transition-colors">
+          </Link>
+          <Link href="/#goi-san-pham" className="hover:text-[#3D5A4C] transition-colors">
             Các Gói Dịch Vụ
-          </a>
+          </Link>
           <Link href="/journal" className="hover:text-[#3D5A4C] transition-colors flex items-center gap-1.5">
             <BookOpen className="w-4 h-4 text-[#8C7355]" />
             Sổ Quán Sát
@@ -40,27 +61,56 @@ export default function Navbar({ onOpenPlayer, onOpenBooking }: { onOpenPlayer?:
             <Calendar className="w-4 h-4 text-[#8C7355]" />
             Đặt Lịch 1:1
           </Link>
+          {user && (
+            <Link 
+              href="/dashboard" 
+              className="text-[#3D5A4C] font-semibold flex items-center gap-1.5 px-3 py-1 bg-[#3D5A4C]/10 rounded-full"
+            >
+              <LayoutDashboard className="w-4 h-4" />
+              Góc Học Viên
+            </Link>
+          )}
         </nav>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {onOpenPlayer && (
             <button
               onClick={onOpenPlayer}
-              className="px-4 py-2 text-xs sm:text-sm font-medium rounded-full zen-btn-outline flex items-center gap-2"
+              className="hidden sm:flex px-3.5 py-2 text-xs sm:text-sm font-medium rounded-full zen-btn-outline items-center gap-2"
             >
               <Headphones className="w-4 h-4" />
-              <span>Nghe Thử Bài 1</span>
+              <span>Nghe Thử</span>
             </button>
           )}
-          <a
-            href="#goi-san-pham"
-            className="px-4 py-2 text-xs sm:text-sm font-medium rounded-full zen-btn-primary shadow-sm hover:shadow"
-          >
-            Đăng Ký Khóa Học
-          </a>
+
+          {user ? (
+            <Link
+              href="/dashboard"
+              className="px-4 py-2 text-xs sm:text-sm font-medium rounded-full zen-btn-primary shadow-sm hover:shadow flex items-center gap-2"
+            >
+              <User className="w-4 h-4" />
+              <span className="hidden sm:inline">Không Gian Của Bạn</span>
+              <span className="sm:hidden">Góc Riêng</span>
+            </Link>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Link
+                href="/login"
+                className="px-3.5 py-2 text-xs sm:text-sm font-medium rounded-full text-[#5C554E] hover:text-[#3D5A4C] border border-[#ECE7E1] hover:border-[#3D5A4C]/30 transition-all flex items-center gap-1.5"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Đăng Nhập</span>
+              </Link>
+              <Link
+                href="/register"
+                className="px-4 py-2 text-xs sm:text-sm font-medium rounded-full zen-btn-primary shadow-sm hover:shadow text-xs sm:text-sm"
+              >
+                Đăng Ký
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </header>
   );
 }
-
