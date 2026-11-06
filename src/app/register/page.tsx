@@ -13,6 +13,8 @@ export default function RegisterPage() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isApplyingAsCoach, setIsApplyingAsCoach] = useState(false);
+  const [coachExpertise, setCoachExpertise] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -36,6 +38,7 @@ export default function RegisterPage() {
           data: {
             full_name: fullName,
             phone: phone,
+            is_coach_applicant: isApplyingAsCoach,
           },
         },
       });
@@ -54,12 +57,14 @@ export default function RegisterPage() {
             full_name: fullName,
             phone: phone,
             role: "student",
+            coach_status: isApplyingAsCoach ? "pending" : "none",
+            expertise: isApplyingAsCoach ? coachExpertise : null,
           }, { onConflict: "id" });
         } catch {
           // Bỏ qua lỗi nếu đã được tạo bởi trigger
         }
 
-        router.push("/dashboard");
+        router.push(isApplyingAsCoach ? "/admin" : "/dashboard");
       }
     } catch (err: any) {
       setErrorMessage("Đã có lỗi xảy ra. Vui lòng thử lại!");
@@ -168,6 +173,41 @@ export default function RegisterPage() {
                   className="w-full text-xs sm:text-sm pl-9 pr-3.5 py-2.5 rounded-xl border border-[#DED7CE] bg-[#FAF8F5] focus:outline-none focus:border-[#3D5A4C]"
                 />
               </div>
+            </div>
+
+            {/* Checkbox đăng ký làm Coach */}
+            <div className="pt-2 border-t border-[#ECE7E1]">
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isApplyingAsCoach}
+                  onChange={(e) => setIsApplyingAsCoach(e.target.checked)}
+                  className="mt-0.5 accent-[#3D5A4C] rounded"
+                />
+                <div className="text-xs">
+                  <span className="font-semibold text-[#2D2A26]">
+                    Tôi đăng ký làm Người Hướng Dẫn / Huấn Luyện Viên (Coach)
+                  </span>
+                  <p className="text-[#7A7165] text-[11px] mt-0.5 leading-relaxed">
+                    Tài khoản Coach sẽ được Tổng Quản Trị phê duyệt trước khi bắt đầu tiếp nhận và hỗ trợ học viên.
+                  </p>
+                </div>
+              </label>
+
+              {isApplyingAsCoach && (
+                <div className="mt-3 animate-fade-in">
+                  <label className="block text-xs font-semibold text-[#5C554E] mb-1">
+                    Lĩnh vực thế mạnh / Chuyên môn
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ví dụ: Thiền chuyển hóa cảm xúc, Năng lượng thân tâm..."
+                    value={coachExpertise}
+                    onChange={(e) => setCoachExpertise(e.target.value)}
+                    className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-xl border border-[#DED7CE] bg-[#FAF8F5] focus:outline-none focus:border-[#3D5A4C]"
+                  />
+                </div>
+              )}
             </div>
 
             <button
