@@ -36,7 +36,7 @@ export default function VietQRModal({ packagePlan, isOpen, onClose }: VietQRModa
       await supabase.from("orders").insert({
         order_code: orderCode,
         full_name: fullName || "Học viên",
-        phone: phone || "0988888888",
+        phone: phone || "0906115528",
         package_code: packagePlan.code,
         package_name: packagePlan.name,
         amount: packagePlan.price,

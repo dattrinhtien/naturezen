@@ -113,6 +113,35 @@ export default function AdminPage() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [currentConversation]);
 
+  // Lắng nghe tin nhắn mới từ học viên theo thời gian thực (Supabase Realtime)
+  useEffect(() => {
+    if (!selectedThread) return;
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`admin_chat_${selectedThread.user_id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `user_id=eq.${selectedThread.user_id}`,
+        },
+        (payload) => {
+          const newMsg = payload.new as ChatMessage;
+          setCurrentConversation((prev) => {
+            if (prev.some((m) => m.id === newMsg.id)) return prev;
+            return [...prev, newMsg];
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedThread]);
+
   // Kiểm tra vai trò của người dùng hiện tại
   const checkAdminAuth = async () => {
     setAuthStatus("checking");

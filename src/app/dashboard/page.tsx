@@ -57,6 +57,35 @@ export default function DashboardPage() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Lắng nghe tin nhắn phản hồi từ Chị Minh Hằng theo thời gian thực (Supabase Realtime)
+  useEffect(() => {
+    if (!user) return;
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`chat_student_${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const newMsg = payload.new as MessageItem;
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === newMsg.id)) return prev;
+            return [...prev, newMsg];
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
   const fetchUserData = async () => {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();

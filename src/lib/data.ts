@@ -40,10 +40,10 @@ export const EBOOKS = [
 export const BANK_CONFIG = {
   bankId: "MB", // Ngân hàng Quân Đội (hoặc VCB, TCB, ACB, ...)
   bankName: "Ngân hàng TMCP Quân Đội (MBBank)",
-  accountNumber: "0988888888", // Số tài khoản mẫu
+  accountNumber: "0906115528",
   accountName: "TRAN THI MINH HANG",
-  zaleContact: "https://zalo.me/0988888888",
-  phoneSupport: "0988.888.888",
+  zaleContact: "https://zalo.me/0906115528",
+  phoneSupport: "0906.115.528",
 };
 
 export const PACKAGES: PackagePlan[] = [

@@ -469,7 +469,7 @@ export default function Home() {
             <div className="font-bold text-white uppercase tracking-wider">Hỗ Trợ & Liên Hệ</div>
             <p className="text-[#B3A999]">
               Đồng hành: Chị Minh Hằng<br />
-              Hotline/Zalo: 0988.888.888<br />
+              Hotline/Zalo: 0906.115.528<br />
               Thời gian tư vấn: 08:30 - 21:00 (Tất cả các ngày trong tuần)
             </p>
           </div>
