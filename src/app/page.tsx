@@ -17,12 +17,14 @@ import {
   Calendar, 
   CheckCircle2, 
   Layers, 
-  Activity 
+  Activity,
+  FileText,
+  Download
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import ZenPlayerModal from "@/components/ZenPlayerModal";
 import VietQRModal from "@/components/VietQRModal";
-import { LESSONS, PACKAGES, PackagePlan, Lesson } from "@/lib/data";
+import { LESSONS, PACKAGES, EBOOKS, PackagePlan, Lesson } from "@/lib/data";
 
 export default function Home() {
   const [isPlayerOpen, setIsPlayerOpen] = useState(false);
@@ -268,6 +270,45 @@ export default function Home() {
               <Headphones className="w-4 h-4" />
               <span>Bật Trình Phát Thiền & Đọc Ebook Chiêm Nghiệm</span>
             </button>
+          </div>
+
+          {/* Ebook & PDF Library */}
+          <div className="mt-16 pt-12 border-t border-[#ECE7E1]">
+            <div className="text-center mb-8">
+              <span className="text-xs font-bold text-[#8C7355] tracking-widest uppercase">
+                Tài Liệu Chiêm Nghiệm & Lưu Trữ
+              </span>
+              <h3 className="font-serif text-2xl font-bold text-[#2D2A26] mt-1">
+                Tủ Sách Ebook Gốc Của Chị Minh Hằng
+              </h3>
+              <p className="text-xs text-[#665E55] mt-1">Đã được lưu trữ và tối ưu hoá trên Supabase Cloud Storage</p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {EBOOKS.map((eb) => (
+                <a
+                  key={eb.id}
+                  href={eb.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-4 rounded-2xl bg-white border border-[#ECE7E1] hover:border-[#3D5A4C] hover:shadow-sm transition-all group flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="w-9 h-9 rounded-xl bg-[#3D5A4C]/10 text-[#3D5A4C] flex items-center justify-center mb-3 group-hover:bg-[#3D5A4C] group-hover:text-white transition-colors">
+                      <FileText className="w-5 h-5" />
+                    </div>
+                    <div className="font-serif font-bold text-sm text-[#2D2A26] mb-1 leading-snug group-hover:text-[#3D5A4C] transition-colors">
+                      {eb.title}
+                    </div>
+                    <span className="text-[11px] text-[#8C7355] block">Định dạng PDF chuẩn</span>
+                  </div>
+                  <div className="pt-3 mt-3 border-t border-[#F2ECE4] flex items-center justify-between text-xs font-medium text-[#3D5A4C]">
+                    <span>Đọc & Tải Về</span>
+                    <Download className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" />
+                  </div>
+                </a>
+              ))}
+            </div>
           </div>
         </div>
       </section>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Play, Pause, RotateCcw, RotateCw, Volume2, VolumeX, X, Clock, BookOpen, ListOrdered, CheckCircle2 } from "lucide-react";
+import { Play, Pause, RotateCcw, RotateCw, Volume2, VolumeX, X, Clock, BookOpen, ListOrdered, CheckCircle2, FileText, ExternalLink } from "lucide-react";
 import { Lesson, LESSONS } from "@/lib/data";
 
 interface ZenPlayerModalProps {
@@ -40,7 +40,15 @@ export default function ZenPlayerModal({ initialLesson, isOpen, onClose, onSelec
       setSleepTimerMinutes(null);
     }, sleepTimerMinutes * 60 * 1000);
 
-    return () => clearTimeout(timer);
+    const handleAudioError = () => {
+    if (selectedLesson.id === "bai-1" && audioRef.current) {
+      console.warn("Fallback to local audio for lesson 1");
+      audioRef.current.src = "/audio/bai-thien-1.m4a";
+      audioRef.current.play().catch(console.error);
+    }
+  };
+
+  return () => clearTimeout(timer);
   }, [sleepTimerMinutes, isPlaying]);
 
   if (!isOpen) return null;
@@ -86,6 +94,14 @@ export default function ZenPlayerModal({ initialLesson, isOpen, onClose, onSelec
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const handleAudioError = () => {
+    if (selectedLesson.id === "bai-1" && audioRef.current) {
+      console.warn("Fallback to local audio for lesson 1");
+      audioRef.current.src = "/audio/bai-thien-1.m4a";
+      audioRef.current.play().catch(console.error);
+    }
   };
 
   return (
@@ -148,6 +164,7 @@ export default function ZenPlayerModal({ initialLesson, isOpen, onClose, onSelec
               preload="auto"
               onTimeUpdate={handleTimeUpdate}
               onLoadedMetadata={handleLoadedMetadata}
+              onError={handleAudioError}
               onEnded={() => setIsPlaying(false)}
             />
 
@@ -307,6 +324,18 @@ export default function ZenPlayerModal({ initialLesson, isOpen, onClose, onSelec
                 </div>
               ) : (
                 <div className="space-y-4">
+                  {selectedLesson.ebookPdfUrl && (
+                    <a
+                      href={selectedLesson.ebookPdfUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full py-2.5 px-3 rounded-xl bg-[#3D5A4C]/10 hover:bg-[#3D5A4C]/20 text-[#3D5A4C] text-xs font-semibold flex items-center justify-center gap-2 transition-colors border border-[#3D5A4C]/30"
+                    >
+                      <FileText className="w-4 h-4" />
+                      <span>Mở Đọc File Ebook PDF Gốc (Supabase Storage)</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  )}
                   <h4 className="font-serif font-bold text-base text-[#2D2A26]">
                     {selectedLesson.ebookSummary.title}
                   </h4>
