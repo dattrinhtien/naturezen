@@ -51,6 +51,7 @@ export default function BookingPage() {
           expertise: c.expertise || "Thiền Năng Lực Tự Nhiên & Chuyển Hoá Cảm Xúc Thân Tâm",
           bio: c.bio || "Người đồng hành lắng nghe và hướng dẫn thiền quán.",
           phone: c.phone || "0906115528",
+          meetUrl: c.meet_url || "https://meet.google.com/new",
           yearsExp: c.years_exp || 5,
           badge: c.full_name?.includes("Hằng") ? "Trưởng Ban Hướng Dẫn" : "Coach Đã Phê Duyệt",
           avatarLetter: c.full_name?.charAt(0)?.toUpperCase() || "C"
@@ -74,6 +75,7 @@ export default function BookingPage() {
         phone: phone,
         coach_id: selectedCoach.id,
         coach_name: selectedCoach.fullName,
+        meet_url: selectedCoach.meetUrl || "https://meet.google.com/new",
         topic: selectedTopicObj?.title || topic,
         mode: mode,
         booking_date: date,
@@ -261,7 +263,7 @@ export default function BookingPage() {
                     <span>Bạn có thể mở trước đường link phòng họp hoặc nhận lời mời qua email/Zalo.</span>
                   </div>
                   <a
-                    href="https://meet.google.com/new"
+                    href={selectedCoach.meetUrl || "https://meet.google.com/new"}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="shrink-0 px-3 py-1.5 rounded-lg bg-emerald-700 text-white font-semibold text-xs hover:bg-emerald-800 transition-colors flex items-center gap-1.5 shadow-xs"

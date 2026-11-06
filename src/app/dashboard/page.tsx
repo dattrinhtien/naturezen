@@ -130,6 +130,7 @@ export default function DashboardPage() {
           expertise: c.expertise || "Thiền Năng Lực Tự Nhiên & Chuyển Hoá Cảm Xúc Thân Tâm",
           bio: c.bio || "Người đồng hành lắng nghe, tháo gỡ bế tắc nội tâm và hướng dẫn thiền quán.",
           phone: c.phone || "0906115528",
+          meetUrl: c.meet_url || "https://meet.google.com/new",
           yearsExp: c.years_exp || 5,
           badge: c.full_name?.includes("Hằng") ? "Trưởng Ban Hướng Dẫn" : "Coach Đã Phê Duyệt",
           avatarLetter: c.full_name?.charAt(0)?.toUpperCase() || "C"
@@ -390,7 +391,7 @@ export default function DashboardPage() {
               </div>
 
               <a
-                href="https://meet.google.com/new"
+                href={selectedCoach.meetUrl || "https://meet.google.com/new"}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-3.5 py-1.5 rounded-xl bg-white border border-[#DED7CE] text-xs font-semibold text-[#3D5A4C] hover:bg-[#FAF8F5] flex items-center gap-1.5 transition-colors shadow-xs"
@@ -702,7 +703,7 @@ export default function DashboardPage() {
 
                     {b.mode === "online" && (
                       <a
-                        href="https://meet.google.com/new"
+                        href={b.meet_url || selectedCoach.meetUrl || "https://meet.google.com/new"}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="px-4 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 hover:bg-emerald-100 text-xs font-semibold flex items-center gap-1.5 transition-colors self-start sm:self-center"

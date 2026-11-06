@@ -7,13 +7,15 @@
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS bio TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS expertise TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS years_exp INT DEFAULT 5;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS meet_url TEXT; -- Link Google Meet riêng của Coach
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS coach_id UUID;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS coach_status TEXT DEFAULT 'none';
 
--- 2. Bổ sung coach_id vào bảng messages và bookings
+-- 2. Bổ sung coach_id và meet_url vào bảng messages và bookings
 ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS coach_id UUID;
 ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS coach_id UUID;
 ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS coach_name TEXT;
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS meet_url TEXT;
 
 -- 3. Tạo index tăng tốc độ tìm kiếm
 CREATE INDEX IF NOT EXISTS idx_profiles_role ON public.profiles(role);

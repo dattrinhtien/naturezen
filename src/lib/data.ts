@@ -53,6 +53,7 @@ export interface CoachProfile {
   expertise: string;
   bio: string;
   phone: string;
+  meetUrl?: string;
   yearsExp: number;
   badge?: string;
   avatarLetter: string;
@@ -66,6 +67,7 @@ export const DEFAULT_COACHES: CoachProfile[] = [
     expertise: "Thiền Năng Lực Tự Nhiên & Chuyển Hoá Cảm Xúc Thân Tâm",
     bio: "Hơn 10 năm nghiên cứu và ứng dụng Năng Lực Tự Nhiên, hỗ trợ hàng trăm học viên tháo gỡ bế tắc cảm xúc, đặt tay giải tỏa điểm đau thân thể và chạm về trạng thái tính Không an lạc.",
     phone: "0906115528",
+    meetUrl: "https://meet.google.com/new",
     yearsExp: 10,
     badge: "Trưởng Ban Hướng Dẫn",
     avatarLetter: "H"
@@ -77,6 +79,7 @@ export const DEFAULT_COACHES: CoachProfile[] = [
     expertise: "Quán Sát Thân Thể, Định Tâm & Hóa Giải Lo Âu",
     bio: "Chuyên viên đồng hành xây dựng kỷ luật chánh niệm tại nhà, hỗ trợ học viên bóc tách từng lớp cảm xúc củ hành tây để tìm lại bình an nội tại.",
     phone: "0906115528",
+    meetUrl: "https://meet.google.com/new",
     yearsExp: 5,
     badge: "Chuyên Viên Thiền Khí",
     avatarLetter: "A"

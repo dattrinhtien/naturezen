@@ -50,6 +50,7 @@ interface UserProfile {
   bio?: string;
   expertise?: string;
   years_exp?: number;
+  meet_url?: string;
   created_at: string;
 }
 
@@ -131,6 +132,7 @@ export default function AdminPage() {
   const [coachBio, setCoachBio] = useState("");
   const [coachExpertise, setCoachExpertise] = useState("");
   const [coachYearsExp, setCoachYearsExp] = useState(5);
+  const [coachMeetUrl, setCoachMeetUrl] = useState("");
   const [isSavingCoachProfile, setIsSavingCoachProfile] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -207,6 +209,7 @@ export default function AdminPage() {
           setCoachBio(profile.bio || "");
           setCoachExpertise(profile.expertise || "");
           setCoachYearsExp(profile.years_exp || 5);
+          setCoachMeetUrl(profile.meet_url || "");
         } else {
           setActiveTab("users");
         }
@@ -382,6 +385,7 @@ export default function AdminPage() {
           bio: coachBio,
           expertise: coachExpertise,
           years_exp: Number(coachYearsExp),
+          meet_url: coachMeetUrl.trim() || null,
         })
         .eq("id", currentUser.id);
 
@@ -394,6 +398,7 @@ export default function AdminPage() {
           bio: coachBio,
           expertise: coachExpertise,
           years_exp: Number(coachYearsExp),
+          meet_url: coachMeetUrl.trim() || undefined,
         });
       }
     } catch (err) {
@@ -1318,6 +1323,23 @@ export default function AdminPage() {
                       onChange={(e) => setCoachYearsExp(Number(e.target.value))}
                       className="w-full text-xs sm:text-sm px-4 py-3 rounded-xl border border-[#DED7CE] bg-[#FAF8F5] focus:outline-none focus:border-[#3D5A4C]"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[#5C554E] mb-1.5 flex items-center gap-1.5">
+                      <Video className="w-3.5 h-3.5 text-[#3D5A4C]" />
+                      <span>Đường Link Phòng Google Meet Cố Định Của Bạn</span>
+                    </label>
+                    <input
+                      type="url"
+                      placeholder="Ví dụ: https://meet.google.com/minh-hang-naturezen"
+                      value={coachMeetUrl}
+                      onChange={(e) => setCoachMeetUrl(e.target.value)}
+                      className="w-full text-xs sm:text-sm px-4 py-3 rounded-xl border border-[#DED7CE] bg-[#FAF8F5] focus:outline-none focus:border-[#3D5A4C]"
+                    />
+                    <p className="text-[11px] text-[#7A7165] mt-1 leading-relaxed">
+                      Link này sẽ được gửi tự động cho học viên khi đặt lịch tư vấn 1:1 hoặc khi bấm &quot;Vào phòng Google Meet&quot;.
+                    </p>
                   </div>
 
                   <div>
