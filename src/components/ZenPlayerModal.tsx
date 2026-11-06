@@ -143,7 +143,9 @@ export default function ZenPlayerModal({ initialLesson, isOpen, onClose, onSelec
             {/* Hidden HTML Audio element */}
             <audio
               ref={audioRef}
+              key={selectedLesson.id}
               src={selectedLesson.audioUrl}
+              preload="auto"
               onTimeUpdate={handleTimeUpdate}
               onLoadedMetadata={handleLoadedMetadata}
               onEnded={() => setIsPlaying(false)}

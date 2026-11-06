@@ -104,7 +104,7 @@ export const LESSONS: Lesson[] = [
     title: "Bài thiền 1: Quan sát cảm xúc",
     subtitle: "Dừng né tránh, sẵn sàng đón nhận và ôm ấp từng con sóng cảm xúc",
     durationMinutes: 13,
-    audioUrl: SUPABASE_STORAGE_BASE ? `${SUPABASE_STORAGE_BASE}/bai-thien-1.m4a` : "/audio/bai-thien-1.m4a",
+    audioUrl: "/audio/bai-thien-1.m4a", // Luôn phát trực tiếp từ Vercel
     isFreePreview: true,
     coreMeaning: "Nhận ra sự sẵn sàng đối diện với cảm xúc và hiểu rằng cảm xúc tiêu cực không phải là điều đáng sợ hay không thể vượt qua.",
     steps: [
@@ -133,7 +133,7 @@ export const LESSONS: Lesson[] = [
     title: "Bài thiền 2: Chấp nhận cảm xúc",
     subtitle: "Xóa bỏ ranh giới phân biệt, ghi nhận và sống trọn vẹn với sự thật nội tâm",
     durationMinutes: 10,
-    audioUrl: SUPABASE_STORAGE_BASE ? `${SUPABASE_STORAGE_BASE}/bai-thien-2.m4a` : "/audio/bai-thien-1.m4a",
+    audioUrl: "/audio/bai-thien-1.m4a",
     isFreePreview: false,
     coreMeaning: "Chìm vào và cảm nhận cảm xúc mà không phân tích hay đánh giá chính là cách chúng ta quan sát sự thật của cảm xúc đúng như bản chất vốn có của nó.",
     steps: [
@@ -158,7 +158,7 @@ export const LESSONS: Lesson[] = [
     title: "Bài thiền 3: Đi qua từng lớp của cảm xúc",
     subtitle: "Bóc tách củ hành tây nội tâm: từ cơn giận bề mặt đến nỗi sợ và sự thiếu thốn",
     durationMinutes: 39,
-    audioUrl: SUPABASE_STORAGE_BASE ? `${SUPABASE_STORAGE_BASE}/bai-thien-3.mp3` : "/audio/bai-thien-1.m4a",
+    audioUrl: "/audio/bai-thien-1.m4a",
     isFreePreview: false,
     coreMeaning: "Những khối cảm xúc dồn nén lâu ngày có cấu trúc nhiều tầng lớp. Bóc tách từng lớp giúp năng lượng cảm xúc được giải phóng hoàn toàn và không quay trở lại.",
     steps: [
@@ -184,7 +184,7 @@ export const LESSONS: Lesson[] = [
     title: "Bài thiền 4: Quan sát cảm giác trên thân thể liên quan đến cảm xúc",
     subtitle: "Khám phá mối liên hệ tương hỗ Thân - Tâm: tuy hai mà một",
     durationMinutes: 24,
-    audioUrl: SUPABASE_STORAGE_BASE ? `${SUPABASE_STORAGE_BASE}/bai-thien-4.mp3` : "/audio/bai-thien-1.m4a",
+    audioUrl: "/audio/bai-thien-1.m4a",
     isFreePreview: false,
     coreMeaning: "Cảm xúc tác động trực tiếp lên cơ thể vật lý (lo lắng gây đau dạ dày, buồn bã gây kiệt sức). Nhận biết cảm giác trên thân là bước quan trọng để tháo gỡ điểm tắc.",
     steps: [
@@ -209,7 +209,7 @@ export const LESSONS: Lesson[] = [
     title: "Bài thiền 5: Cảm nhận và chấp nhận cảm giác trên thân",
     subtitle: "Chìm vào cơn đau vật lý, chấp nhận sự chống đối để đạt đến sự tĩnh lặng sâu sắc",
     durationMinutes: 26,
-    audioUrl: SUPABASE_STORAGE_BASE ? `${SUPABASE_STORAGE_BASE}/bai-thien-5.mp3` : "/audio/bai-thien-1.m4a",
+    audioUrl: "/audio/bai-thien-1.m4a",
     isFreePreview: false,
     coreMeaning: "Chấp nhận cả cơn đau lẫn phản ứng chống đối của cơ thể giúp cơn đau đạt đỉnh rồi tự tan biến, đưa tâm trí và thân thể về trạng thái an lạc tĩnh lặng tuyệt đối.",
     steps: [
@@ -234,7 +234,7 @@ export const LESSONS: Lesson[] = [
     title: "Bài thiền 6: Chấp nhận các khía cạnh khác nhau của bản thân",
     subtitle: "Hòa hợp con người ưu điểm & nhược điểm, ôm ấp phần tối nội tâm với lòng từ bi",
     durationMinutes: 50,
-    audioUrl: SUPABASE_STORAGE_BASE ? `${SUPABASE_STORAGE_BASE}/bai-thien-6.mp3` : "/audio/bai-thien-1.m4a",
+    audioUrl: "/audio/bai-thien-1.m4a",
     isFreePreview: false,
     coreMeaning: "Bên trong luôn có hai con người Âm - Dương. Ghi nhận ưu điểm và ôm ấp nhược điểm (ích kỷ, cô đơn, tâm lý nạn nhân) chính là chìa khóa đạt tới tình yêu thương chân thật và bình yên vững chãi.",
     steps: [

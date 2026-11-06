@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Calendar, Clock, Sparkles, Send, CheckCircle2, MessageCircle, MapPin, Video } from "lucide-react";
+import { ArrowLeft, Calendar, Clock, Sparkles, Send, CheckCircle2, MessageCircle, MapPin, Video, ExternalLink } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { BANK_CONFIG } from "@/lib/data";
 import { createClient } from "@/lib/supabase/client";
@@ -155,8 +155,8 @@ export default function BookingPage() {
                   onClick={() => setMode("online")}
                   className={`p-3.5 rounded-xl border flex items-center justify-center gap-2 text-xs font-semibold transition-all ${
                     mode === "online"
-                      ? "bg-[#3D5A4C] text-white border-[#3D5A4C]"
-                      : "bg-[#FAF8F5] text-[#5C554E] border-[#DED7CE]"
+                      ? "bg-[#3D5A4C] text-white border-[#3D5A4C] shadow-sm"
+                      : "bg-[#FAF8F5] text-[#5C554E] border-[#DED7CE] hover:border-[#3D5A4C]"
                   }`}
                 >
                   <Video className="w-4 h-4" />
@@ -168,14 +168,32 @@ export default function BookingPage() {
                   onClick={() => setMode("offline")}
                   className={`p-3.5 rounded-xl border flex items-center justify-center gap-2 text-xs font-semibold transition-all ${
                     mode === "offline"
-                      ? "bg-[#3D5A4C] text-white border-[#3D5A4C]"
-                      : "bg-[#FAF8F5] text-[#5C554E] border-[#DED7CE]"
+                      ? "bg-[#3D5A4C] text-white border-[#3D5A4C] shadow-sm"
+                      : "bg-[#FAF8F5] text-[#5C554E] border-[#DED7CE] hover:border-[#3D5A4C]"
                   }`}
                 >
                   <MapPin className="w-4 h-4" />
                   <span>Trực Tiếp (Hà Nội)</span>
                 </button>
               </div>
+
+              {mode === "online" && (
+                <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-emerald-950 animate-fade-in">
+                  <div className="flex items-center gap-2">
+                    <Video className="w-4 h-4 text-emerald-700 shrink-0" />
+                    <span>Hình thức: Tư vấn trực tuyến qua <strong>Google Meet</strong> (Âm thanh & Video HD)</span>
+                  </div>
+                  <a
+                    href="https://meet.google.com/new"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 bg-[#3D5A4C] hover:bg-[#31493D] text-white rounded-lg font-semibold flex items-center gap-1.5 shrink-0 shadow-xs text-xs"
+                  >
+                    <span>Mở thử phòng Meet</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
                 <div>
@@ -283,7 +301,18 @@ export default function BookingPage() {
             <p className="text-sm text-[#5C554E] max-w-md mx-auto leading-relaxed">
               Cảm ơn bạn <strong>{fullName}</strong>. Chúng tôi đã nhận được thông tin buổi hẹn ngày <strong>{date}</strong> ({timeSlot}). Chị Minh Hằng sẽ liên hệ xác nhận và gửi đường link Google Meet trực tiếp qua Zalo cho bạn.
             </p>
-            <div className="pt-4 flex flex-col sm:flex-row justify-center gap-3">
+            <div className="pt-4 flex flex-col sm:flex-row flex-wrap justify-center gap-3">
+              {mode === "online" && (
+                <a
+                  href="https://meet.google.com/new"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="py-3 px-5 rounded-xl bg-white border border-[#3D5A4C] text-[#3D5A4C] hover:bg-[#3D5A4C]/10 text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all shadow-xs"
+                >
+                  <Video className="w-4 h-4 text-[#3D5A4C]" />
+                  <span>Mở Phòng Google Meet</span>
+                </a>
+              )}
               {gcalDates && (
                 <a
                   href={googleCalendarUrl}
@@ -292,7 +321,7 @@ export default function BookingPage() {
                   className="py-3 px-5 rounded-xl bg-white border border-[#3D5A4C] text-[#3D5A4C] hover:bg-[#3D5A4C]/10 text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all shadow-xs"
                 >
                   <Calendar className="w-4 h-4 text-[#3D5A4C]" />
-                  <span>Thêm Vào Google Calendar & Meet</span>
+                  <span>Thêm Vào Google Calendar</span>
                 </a>
               )}
               <a
